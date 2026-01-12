@@ -715,7 +715,80 @@ def detect_never_used_memories(agent_memory):
     return warnings
 ```
 
-### 3.5 強度管理と2段階強化
+### 3.5 強度管理と記憶の定着
+
+#### 強度の役割の明確化
+
+強度（strength）は2つの異なる役割を持つ：
+
+| 役割 | 説明 | 発動タイミング |
+|------|------|---------------|
+| **存在可否** | アーカイブ判定（閾値以下で退避） | 睡眠フェーズ |
+| **検索順位** | ランキングへの補助的影響 | 検索時（ただし類似度が主） |
+
+**重要な設計判断**：検索順位は類似度（文脈マッチング）が主役であり、強度は補助的な役割に留める。これにより、定着した記憶が増えても類似度で差別化できる。
+
+```
+強度の本質的な役割：
+× 検索で上位に来るかどうか
+○ 存在し続けられるかどうか（忘却への耐性）
+```
+
+#### 記憶の定着（Consolidation）
+
+人間の記憶と同様に、繰り返し使用された記憶は「定着」し、減衰しにくくなる。
+
+**エピソード記憶から意味記憶への変換**：
+
+```
+エピソード記憶: 「2024年1月に田中さんがサプライヤーYの火災で困っていた」
+     ↓ 繰り返し使用 + 睡眠での統合
+意味記憶: 「サプライヤーYは単一拠点リスクがある」（文脈が剥離）
+```
+
+**定着レベルの管理**：
+
+```python
+class Memory:
+    strength: float           # 現在の強度
+    access_count: int         # 使用回数
+    consolidation_level: int  # 定着レベル (0-5)
+    status: str               # "active" | "archived"
+
+# 定着レベルの閾値
+CONSOLIDATION_THRESHOLDS = [0, 5, 15, 30, 60, 100]  # access_countの閾値
+
+def update_consolidation(memory):
+    """使用回数に応じて定着レベルを更新"""
+    for level, threshold in enumerate(CONSOLIDATION_THRESHOLDS):
+        if memory.access_count >= threshold:
+            memory.consolidation_level = level
+```
+
+**定着レベルと減衰率の関係**：
+
+| 定着レベル | access_count | 減衰率 | 意味 |
+|-----------|-------------|--------|------|
+| 0 | 0-4 | 0.95 | 未定着（1日5%減衰） |
+| 1 | 5-14 | 0.97 | 少し定着 |
+| 2 | 15-29 | 0.98 | 定着 |
+| 3 | 30-59 | 0.99 | よく定着 |
+| 4 | 60-99 | 0.995 | 強く定着 |
+| 5 | 100+ | 0.998 | 完全定着（ほぼ減衰しない） |
+
+```python
+DECAY_RATES = {
+    0: 0.95,   # 未定着: 通常減衰
+    1: 0.97,
+    2: 0.98,
+    3: 0.99,
+    4: 0.995,
+    5: 0.998,  # 完全定着: ほぼ減衰しない
+}
+
+def get_decay_rate(memory):
+    return DECAY_RATES[memory.consolidation_level]
+```
 
 #### 2段階の強化プロセス（参照と使用の分離）
 
@@ -897,39 +970,171 @@ def update_impact(memory, context):
 
 #### 睡眠フェーズの実装
 
+睡眠フェーズでは、以下の3つの処理を順番に実行する：
+
+1. **定着レベルに応じた減衰** - よく使われた記憶は減衰しにくい
+2. **閾値ベースのアーカイブ** - 弱くなった記憶を退避
+3. **容量ベースの強制剪定** - 上限を超えた場合の調整
+
 ```python
 def sleep_phase(agent_memory):
     """
     1日1回 または 1時間アイドル後に実行
     """
-    
+
     # 1. タスク受付停止
     agent_memory.accepting_tasks = False
-    
-    # 2. 全メモリに減衰適用
-    for memory in agent_memory.all():
-        # 一律減衰
-        memory.strength *= 0.95
-        
+
+    # 2. 定着レベルの更新
+    for memory in agent_memory.active():
+        update_consolidation(memory)
+
+    # 3. 定着レベルに応じた減衰適用
+    for memory in agent_memory.active():
+        decay_rate = get_decay_rate(memory)
+
+        memory.strength *= decay_rate
         for perspective in memory.strength_by_perspective:
-            memory.strength_by_perspective[perspective] *= 0.95
-        
+            memory.strength_by_perspective[perspective] *= decay_rate
+
         # 最近アクセスされたものは減衰を相殺
         days_since_access = (now() - memory.last_access).days
         if days_since_access < 7:
-            memory.strength *= 1.03
-    
-    # 3. 閾値以下をアーカイブ
-    for memory in agent_memory.all():
-        # 全観点の強度が閾値以下ならアーカイブ
+            memory.strength *= 1.02  # 若干の相殺
+
+    # 4. 閾値以下をアーカイブ（論理的忘却）
+    for memory in agent_memory.active():
         if memory.strength < 0.1 and all(
             s < 0.1 for s in memory.strength_by_perspective.values()
         ):
-            archive(memory)  # 削除ではなく退避
-    
-    # 4. タスク受付再開
+            memory.status = "archived"
+
+    # 5. 容量ベースの強制剪定
+    prune_if_over_capacity(agent_memory)
+
+    # 6. タスク受付再開
     agent_memory.accepting_tasks = True
 ```
+
+#### 容量管理と強制剪定
+
+**なぜ容量制限が必要か**：
+
+```
+問題: 長期運用すると定着記憶が増え続ける
+→ 検索が遅くなる
+→ 類似した記憶が多すぎて差別化困難
+→ 人間の脳と違って物理的制約がないから無限に増える
+
+解決: 明示的な容量制限を設ける
+```
+
+**容量の計算方法**：
+
+単純な件数ではなく、定着度に応じた「重み」で容量を計算する。定着した記憶ほど「場所を取る」という考え方。
+
+```python
+class MemoryCapacity:
+    MAX_TOTAL_WEIGHT = 10000  # アクティブ記憶の総重み上限
+
+    # 定着レベルごとの重み（定着するほど重い）
+    CONSOLIDATION_WEIGHTS = {
+        0: 1.0,   # 未定着: 軽い
+        1: 2.0,
+        2: 4.0,
+        3: 8.0,
+        4: 16.0,
+        5: 32.0,  # 完全定着: 重い
+    }
+
+    def calculate_weight(self, memory):
+        """記憶の「重み」を計算"""
+        return self.CONSOLIDATION_WEIGHTS[memory.consolidation_level]
+
+    def get_total_weight(self, agent_memory):
+        """アクティブ記憶の総重みを計算"""
+        return sum(
+            self.calculate_weight(m)
+            for m in agent_memory.active()
+        )
+```
+
+**強制剪定の実装**：
+
+```python
+def prune_if_over_capacity(agent_memory):
+    """容量超過時の強制剪定"""
+    capacity = MemoryCapacity()
+    total = capacity.get_total_weight(agent_memory)
+
+    if total <= capacity.MAX_TOTAL_WEIGHT:
+        return  # 容量内なら何もしない
+
+    # 剪定候補をソート
+    # 優先度: 定着度が低い → 最終アクセスが古い
+    candidates = sorted(
+        agent_memory.active(),
+        key=lambda m: (m.consolidation_level, -m.days_since_last_access)
+    )
+
+    # 容量に収まるまでアーカイブ
+    for memory in candidates:
+        if total <= capacity.MAX_TOTAL_WEIGHT:
+            break
+        memory.status = "archived"
+        total -= capacity.calculate_weight(memory)
+```
+
+**剪定の優先順位**：
+
+```
+1. 定着度が低い記憶を優先的にアーカイブ
+2. 同じ定着度なら、最終アクセスが古いものを優先
+3. 定着度5（完全定着）でも、容量のためには剪定される
+
+→ 「絶対に忘れない」記憶は存在しない
+→ ただし剪定されにくい（最後まで残る）
+```
+
+これは人間の脳のシナプス剪定と同じ原理：新しい記憶を作るには、使われていない古い記憶の「場所」を再利用する必要がある。
+
+#### アーカイブと再活性化
+
+**アーカイブは削除ではない**：
+
+人間の記憶も「消えた」のではなく「アクセスできなくなった」だけの可能性がある。適切なキュー（手がかり）があれば思い出せる。
+
+```python
+def search(query, agent_memory):
+    """通常検索: activeのみ"""
+    candidates = vector_search(query, agent_memory, status="active")
+    return candidates
+
+def deep_recall(query, agent_memory):
+    """深い想起: archivedも含めて検索"""
+    # 「あの時の...なんだっけ」という明示的な想起
+    candidates = vector_search(query, agent_memory, status="all")
+
+    # 思い出せたらactiveに戻す（再活性化）
+    for memory in candidates:
+        if memory.status == "archived":
+            memory.status = "active"
+            memory.strength = 0.5  # 再活性化時の初期強度
+            memory.consolidation_level = max(0, memory.consolidation_level - 2)
+
+    return candidates
+```
+
+#### 設計のまとめ
+
+| 処理 | タイミング | 対象 | 効果 |
+|------|-----------|------|------|
+| 強化 | タスク実行時 | 使用された記憶 | strength++, access_count++ |
+| 定着更新 | 睡眠フェーズ | 全active記憶 | consolidation_level更新 |
+| 減衰 | 睡眠フェーズ | 全active記憶 | 定着度に応じてstrength減少 |
+| アーカイブ | 睡眠フェーズ | strength閾値以下 | status→archived |
+| 強制剪定 | 睡眠フェーズ | 容量超過時 | 定着度低い順にarchived |
+| 再活性化 | deep_recall時 | archived記憶 | status→active |
 
 #### バックグラウンドリプレイは不要
 
@@ -937,10 +1142,11 @@ def sleep_phase(agent_memory):
 
 必要なのは：
 1. 参照による強化（タスク実行時、使用確認後にリアルタイム）
-2. 定期的な減衰（睡眠時、一括）
-3. インパクトによるボーナス（タスク実行時、リアルタイム）
+2. 定着レベルに応じた減衰（睡眠時、一括）
+3. 容量管理と強制剪定（睡眠時、一括）
+4. インパクトによるボーナス（タスク実行時、リアルタイム）
 
-この3つだけでよい。シンプルなほうが正しい。
+この4つでよい。シンプルなほうが正しい。
 
 ### 3.8 コンパクション問題への対応
 
@@ -1558,21 +1764,27 @@ Titanは理想的なソリューションだが、実用化には時間がかか
 | 用語 | 定義 |
 |------|------|
 | 外部メモリ | エージェント専用の永続的な記憶ストア（ベクトルDB + メタデータ） |
-| 強度（strength） | メモリの重要度スコア。使用で増加、定期的に減衰 |
-| access_count | 実際に使用された回数 |
+| 強度（strength） | メモリの重要度スコア。使用で増加、定期的に減衰。存在可否（アーカイブ判定）に影響 |
+| 定着レベル（consolidation_level） | 記憶の定着度（0-5）。使用回数に応じて上昇し、減衰率を決定 |
+| 減衰率（decay_rate） | 睡眠フェーズでの強度減少率。定着レベルが高いほど減衰しにくい |
+| access_count | 実際に使用された回数。定着レベルの更新に使用 |
 | candidate_count | 検索候補になったが使用されなかった回数 |
 | 観点（perspective） | エージェントの役割に応じた判断の視点（例：コスト、納期） |
-| 睡眠フェーズ | タスク受付を停止して減衰処理を一括実行する期間 |
+| 睡眠フェーズ | タスク受付を停止して減衰・アーカイブ・剪定を一括実行する期間 |
 | インパクトスコア | フィードバックやタスク成功による追加の強化量 |
 | コンパクション | コンテキストウィンドウが埋まった際の情報圧縮・削除 |
 | LTP（長期増強） | 脳で、シナプス発火によりそのシナプスが強化される現象 |
 | 関連性フィルタ | 検索Stage 1。ベクトル類似度で無関係な情報を除外する処理 |
-| 優先度ランキング | 検索Stage 2。関連する候補内で強度・新鮮さを加味して順位付け |
+| 優先度ランキング | 検索Stage 2。関連する候補内で類似度を主役に順位付け |
 | クエリ拡張 | 観点キーワードを追加してベクトル検索の漏れを防ぐ手法 |
 | 基本原則タグ | 類似度に関係なく常に参照すべき情報に付与する特別なタグ |
-| スコア合成 | 類似度・強度・新鮮さを重み付け合成して検索ランキングを決定する手法 |
+| 学習可能なスコアラー | 特徴量から検索スコアを予測するニューラルネットワーク |
 | 崖の問題 | 固定件数で検索結果を切ることで境界付近の情報に不連続な扱いが生じる問題 |
 | 教育プロセス | 教科書+テストにより専門性の種を形成するプロセス |
+| アーカイブ | 論理的忘却。検索対象から外れるが削除はされない状態 |
+| 再活性化 | アーカイブされた記憶を明示的な想起で active に戻すこと |
+| 容量制限 | アクティブ記憶の総重みに対する上限。長期運用での破綻を防止 |
+| 強制剪定 | 容量超過時に定着度が低い順にアーカイブする処理 |
 
 ## 付録B：関連研究
 

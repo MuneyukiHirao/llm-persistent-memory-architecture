@@ -717,7 +717,80 @@ def detect_never_used_memories(agent_memory):
     return warnings
 ```
 
-### 3.5 Strength Management and Two-Stage Reinforcement
+### 3.5 Strength Management and Memory Consolidation
+
+#### Clarification of Strength's Role
+
+Strength has two distinct roles:
+
+| Role | Description | Timing |
+|------|-------------|--------|
+| **Existence** | Archive threshold (retire below threshold) | Sleep phase |
+| **Search ranking** | Auxiliary influence on ranking | Search time (but similarity is primary) |
+
+**Important design decision**: Search ranking is primarily determined by similarity (context matching), with strength playing only an auxiliary role. This allows differentiation by similarity even as consolidated memories increase.
+
+```
+Essential role of strength:
+× Whether to appear high in search results
+○ Whether to continue existing (resistance to forgetting)
+```
+
+#### Memory Consolidation
+
+Like human memory, repeatedly used memories become "consolidated" and decay more slowly.
+
+**Conversion from episodic to semantic memory**:
+
+```
+Episodic memory: "In January 2024, Tanaka was troubled by the Supplier Y fire"
+     ↓ Repeated use + sleep consolidation
+Semantic memory: "Supplier Y has single-site risk" (context detached)
+```
+
+**Consolidation Level Management**:
+
+```python
+class Memory:
+    strength: float           # Current strength
+    access_count: int         # Usage count
+    consolidation_level: int  # Consolidation level (0-5)
+    status: str               # "active" | "archived"
+
+# Consolidation level thresholds
+CONSOLIDATION_THRESHOLDS = [0, 5, 15, 30, 60, 100]  # access_count thresholds
+
+def update_consolidation(memory):
+    """Update consolidation level based on usage count"""
+    for level, threshold in enumerate(CONSOLIDATION_THRESHOLDS):
+        if memory.access_count >= threshold:
+            memory.consolidation_level = level
+```
+
+**Relationship between Consolidation Level and Decay Rate**:
+
+| Consolidation Level | access_count | Decay Rate | Meaning |
+|---------------------|--------------|------------|---------|
+| 0 | 0-4 | 0.95 | Unconsolidated (5% daily decay) |
+| 1 | 5-14 | 0.97 | Slightly consolidated |
+| 2 | 15-29 | 0.98 | Consolidated |
+| 3 | 30-59 | 0.99 | Well consolidated |
+| 4 | 60-99 | 0.995 | Strongly consolidated |
+| 5 | 100+ | 0.998 | Fully consolidated (almost no decay) |
+
+```python
+DECAY_RATES = {
+    0: 0.95,   # Unconsolidated: normal decay
+    1: 0.97,
+    2: 0.98,
+    3: 0.99,
+    4: 0.995,
+    5: 0.998,  # Fully consolidated: almost no decay
+}
+
+def get_decay_rate(memory):
+    return DECAY_RATES[memory.consolidation_level]
+```
 
 #### Two-Stage Reinforcement Process (Separating Reference and Use)
 
@@ -899,6 +972,12 @@ Tasks arriving during decay processing cause inconsistent memory state, breaking
 
 #### Sleep Phase Implementation
 
+The sleep phase executes three processes in sequence:
+
+1. **Consolidation-based decay** - Well-used memories decay less
+2. **Threshold-based archiving** - Retire weakened memories
+3. **Capacity-based forced pruning** - Adjust when over limit
+
 ```python
 def sleep_phase(agent_memory):
     """
@@ -908,30 +987,156 @@ def sleep_phase(agent_memory):
     # 1. Stop task acceptance
     agent_memory.accepting_tasks = False
 
-    # 2. Apply decay to all memories
-    for memory in agent_memory.all():
-        # Uniform decay
-        memory.strength *= 0.95
+    # 2. Update consolidation levels
+    for memory in agent_memory.active():
+        update_consolidation(memory)
 
+    # 3. Apply consolidation-based decay
+    for memory in agent_memory.active():
+        decay_rate = get_decay_rate(memory)
+
+        memory.strength *= decay_rate
         for perspective in memory.strength_by_perspective:
-            memory.strength_by_perspective[perspective] *= 0.95
+            memory.strength_by_perspective[perspective] *= decay_rate
 
         # Recently accessed items offset decay
         days_since_access = (now() - memory.last_access).days
         if days_since_access < 7:
-            memory.strength *= 1.03
+            memory.strength *= 1.02  # Slight offset
 
-    # 3. Archive below threshold
-    for memory in agent_memory.all():
-        # Archive if all perspective strengths below threshold
+    # 4. Archive below threshold (logical forgetting)
+    for memory in agent_memory.active():
         if memory.strength < 0.1 and all(
             s < 0.1 for s in memory.strength_by_perspective.values()
         ):
-            archive(memory)  # Retire, not delete
+            memory.status = "archived"
 
-    # 4. Resume task acceptance
+    # 5. Capacity-based forced pruning
+    prune_if_over_capacity(agent_memory)
+
+    # 6. Resume task acceptance
     agent_memory.accepting_tasks = True
 ```
+
+#### Capacity Management and Forced Pruning
+
+**Why Capacity Limits are Needed**:
+
+```
+Problem: Consolidated memories keep growing during long-term operation
+→ Search becomes slow
+→ Too many similar memories make differentiation difficult
+→ Unlike human brain, no physical constraints so growth is unlimited
+
+Solution: Set explicit capacity limits
+```
+
+**Capacity Calculation Method**:
+
+Instead of simple count, calculate capacity using "weight" based on consolidation level. More consolidated memories "take more space."
+
+```python
+class MemoryCapacity:
+    MAX_TOTAL_WEIGHT = 10000  # Total weight limit for active memories
+
+    # Weight by consolidation level (more consolidated = heavier)
+    CONSOLIDATION_WEIGHTS = {
+        0: 1.0,   # Unconsolidated: light
+        1: 2.0,
+        2: 4.0,
+        3: 8.0,
+        4: 16.0,
+        5: 32.0,  # Fully consolidated: heavy
+    }
+
+    def calculate_weight(self, memory):
+        """Calculate memory's 'weight'"""
+        return self.CONSOLIDATION_WEIGHTS[memory.consolidation_level]
+
+    def get_total_weight(self, agent_memory):
+        """Calculate total weight of active memories"""
+        return sum(
+            self.calculate_weight(m)
+            for m in agent_memory.active()
+        )
+```
+
+**Forced Pruning Implementation**:
+
+```python
+def prune_if_over_capacity(agent_memory):
+    """Forced pruning when over capacity"""
+    capacity = MemoryCapacity()
+    total = capacity.get_total_weight(agent_memory)
+
+    if total <= capacity.MAX_TOTAL_WEIGHT:
+        return  # Do nothing if within capacity
+
+    # Sort pruning candidates
+    # Priority: lower consolidation first → older last access first
+    candidates = sorted(
+        agent_memory.active(),
+        key=lambda m: (m.consolidation_level, -m.days_since_last_access)
+    )
+
+    # Archive until within capacity
+    for memory in candidates:
+        if total <= capacity.MAX_TOTAL_WEIGHT:
+            break
+        memory.status = "archived"
+        total -= capacity.calculate_weight(memory)
+```
+
+**Pruning Priority**:
+
+```
+1. Prioritize archiving less consolidated memories
+2. Among same consolidation level, prioritize older last access
+3. Even level 5 (fully consolidated) can be pruned for capacity
+
+→ No "never forget" memories exist
+→ But they're harder to prune (remain until last)
+```
+
+This follows the same principle as synaptic pruning in the human brain: to create new memories, you need to reuse the "space" of old unused memories.
+
+#### Archive and Re-activation
+
+**Archive is not deletion**:
+
+Human memories may not be "erased" but just "inaccessible." With the right cue (hint), they can be recalled.
+
+```python
+def search(query, agent_memory):
+    """Normal search: active only"""
+    candidates = vector_search(query, agent_memory, status="active")
+    return candidates
+
+def deep_recall(query, agent_memory):
+    """Deep recall: include archived"""
+    # Explicit recall like "that time... what was it?"
+    candidates = vector_search(query, agent_memory, status="all")
+
+    # If recalled, return to active (re-activation)
+    for memory in candidates:
+        if memory.status == "archived":
+            memory.status = "active"
+            memory.strength = 0.5  # Initial strength on re-activation
+            memory.consolidation_level = max(0, memory.consolidation_level - 2)
+
+    return candidates
+```
+
+#### Design Summary
+
+| Process | Timing | Target | Effect |
+|---------|--------|--------|--------|
+| Reinforcement | Task execution | Used memories | strength++, access_count++ |
+| Consolidation update | Sleep phase | All active memories | Update consolidation_level |
+| Decay | Sleep phase | All active memories | Decrease strength based on consolidation |
+| Archive | Sleep phase | Below strength threshold | status→archived |
+| Forced pruning | Sleep phase | When over capacity | Archive lowest consolidation first |
+| Re-activation | On deep_recall | Archived memories | status→active |
 
 #### Background Replay is Unnecessary
 
@@ -939,10 +1144,11 @@ The main purpose of human sleep replay is "transfer from hippocampus to neocorte
 
 What's needed:
 1. Reinforcement through reference (during task execution, real-time after use confirmation)
-2. Periodic decay (during sleep, batch)
-3. Impact bonus (during task execution, real-time)
+2. Consolidation-based decay (during sleep, batch)
+3. Capacity management and forced pruning (during sleep, batch)
+4. Impact bonus (during task execution, real-time)
 
-These three are sufficient. Simpler is correct.
+These four are sufficient. Simpler is correct.
 
 ### 3.8 Addressing Compaction Problem
 
@@ -1560,21 +1766,27 @@ Agents should similarly aim for "better than now" rather than perfection.
 | Term | Definition |
 |------|------------|
 | External memory | Agent-dedicated persistent memory store (vector DB + metadata) |
-| Strength | Importance score of memory. Increases with use, decays periodically |
-| access_count | Number of times actually used |
+| Strength | Importance score of memory. Increases with use, decays periodically. Determines existence (archive threshold) |
+| access_count | Number of times actually used. Used for consolidation level updates |
 | candidate_count | Number of times became search candidate but not used |
 | Perspective | Judgment viewpoint according to agent role (e.g., Cost, Delivery) |
-| Sleep phase | Period where task acceptance stops for batch decay processing |
+| Sleep phase | Period where task acceptance stops for batch decay, archive, and pruning |
 | Impact score | Additional reinforcement from feedback or task success |
 | Compaction | Information compression/deletion when context window fills |
 | LTP (Long-Term Potentiation) | Brain phenomenon where synapse firing strengthens that synapse |
 | Relevance filter | Search Stage 1. Exclude irrelevant information by vector similarity |
-| Priority ranking | Search Stage 2. Rank within relevant candidates factoring strength and recency |
+| Priority ranking | Search Stage 2. Rank within relevant candidates (similarity is primary) |
 | Query expansion | Method to prevent vector search misses by adding perspective keywords |
 | Principle tag | Special tag for information to always reference regardless of similarity |
-| Score synthesis | Method to determine search ranking by weighted combination of similarity, strength, recency |
+| Learnable scorer | Neural network that predicts search scores from features |
 | Cliff problem | Problem of discontinuous treatment for boundary information when cutting results at fixed count |
 | Education process | Process to form seeds of expertise through textbook + test |
+| Consolidation level | Level (0-5) indicating how well a memory is consolidated based on access_count |
+| Decay rate | Rate at which strength decreases during sleep phase, varies by consolidation level |
+| Archive | Logical forgetting. Excluded from search but not deleted |
+| Re-activation | Returning archived memory to active status through explicit deep recall |
+| Capacity limit | Upper limit on total weight of active memories. Prevents breakdown during long-term operation |
+| Forced pruning | Process of archiving memories in order of lowest consolidation when over capacity |
 
 ## Appendix B: Related Research
 
