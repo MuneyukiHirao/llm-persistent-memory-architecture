@@ -396,6 +396,571 @@ This allows user preferences to be treated as "changeable." If they used to pref
                                         → Routing improvement
 ```
 
+#### Orchestrator Initial State
+
+The orchestrator also forms its initial state through the same education process as specialized agents. Starting with empty external memory would prevent appropriate decision-making.
+
+**Initial Education Content**:
+
+```yaml
+orchestrator_textbook:
+  title: "Orchestrator Basics"
+  perspective: "User Intent"
+
+  chapters:
+    - title: "Handling Ambiguous Instructions"
+      sections:
+        - title: "Detecting Ambiguity"
+          text: "When user instructions have multiple interpretations, clarify through questions instead of interpreting arbitrarily..."
+        - title: "How to Ask"
+          text: "Presenting options is effective. Avoid open-ended questions..."
+      test_questions:
+        - question: "Received instruction 'Create an app'. How should you respond?"
+          answer_keywords: ["question", "clarify", "platform", "features"]
+
+    - title: "Agent Selection"
+      sections:
+        - title: "Assessing Expertise"
+          text: "Analyze task nature and select appropriate agent..."
+      test_questions:
+        - question: "Should 'investigate Japanese input issues' and 'implement UI' be assigned to the same agent?"
+          answer_keywords: ["research", "implementation", "different agents"]
+```
+
+**Essential Initial Learnings**:
+
+```
+Learnings orchestrator should have from the start:
+
+1. Handling Ambiguity
+   - "Clarify ambiguous instructions through questions"
+   - "Avoid arbitrary interpretation"
+   - "Presenting options is effective"
+
+2. Addressing LLM Tendencies
+   - "LLMs tend to make arbitrary decisions"
+   - "Prioritize confirming user intent"
+   - "Request clarification for vague expressions like 'properly'"
+
+3. Agent Selection
+   - "Research and implementation need different agents"
+   - "When unsure, ask before deciding"
+
+4. Task Size Judgment
+   - "Understand specialized agents' context sizes"
+   - "Split tasks with margin"
+   - "Learn that compaction failures are due to my poor instructions"
+
+5. Progress Monitoring and Intervention
+   - "Send progress checks after certain time passes"
+   - "Instruct early abort when detecting stagnation"
+   - "Report blockages to user for judgment"
+
+6. Completion Judgment and Reporting
+   - "Confirm with user after all subtasks complete"
+   - "Include deliverables, unresolved items, and improvement suggestions"
+```
+
+These are accumulated in external memory through the education process and reinforced/decayed through operational experience.
+
+#### Task Size Management
+
+**The orchestrator is responsible for understanding subordinates' (specialized agents') context sizes and instructing tasks with margin.**
+
+```
+Information orchestrator must grasp:
+├── Context window size of each agent
+├── Typical context consumption by task type
+└── Safety margin (e.g., size completable within 70%)
+```
+
+**Task Splitting Principles**:
+
+```
+Bad example:
+Task: "Implement TerminalView for Android SSH/SFTP client"
+→ Too large, agent will hit compaction
+
+Good example:
+Task 1: "Implement TerminalView basic rendering"
+Task 2: "Implement key input event handling"
+Task 3: "Implement special key panel"
+Task 4: "Integrate rendering and key input"
+→ Each task completable in one session
+```
+
+**Learning from Compaction Failures**:
+
+```python
+def handle_agent_failure(orchestrator, failure_report):
+    if failure_report.reason == "context_overflow":
+        # Save as orchestrator's own learning
+        learning = {
+            "content": f"Compaction occurred in task '{failure_report.task_summary}'",
+            "learnings": {
+                "Agent Suitability": f"Task of this size was too large for {failure_report.agent_type}",
+                "Task Result Evaluation": "Task splitting was insufficient"
+            }
+        }
+        save_learning(orchestrator, learning)
+
+        # Split and retry
+        subtasks = split_task(failure_report.original_task)
+        for subtask in subtasks:
+            delegate_to_agent(subtask)
+```
+
+#### Progress Monitoring and Early Abort
+
+The orchestrator intervenes before agents hit compaction.
+
+```
+Progress Monitoring Flow:
+
+Delegate task to agent
+    ↓
+Periodically send progress checks (e.g., every 10 minutes)
+    ↓
+Receive status report from agent
+{
+    "task_id": "impl_001",
+    "status": "in_progress",
+    "progress_estimate": "30%",
+    "context_usage": "60%",
+    "current_work": "Implementing key input handling"
+}
+    ↓
+Judgment:
+├── On track (progress > context usage) → Continue
+├── Danger (progress < context usage * 0.7) → Instruct early abort
+│   └── "Please abort. Report what you've accomplished so far"
+└── Blocked (progress stagnating) → Check status, report to user if needed
+```
+
+**Early Abort Criteria**:
+
+```
+Example: Context 60% used, progress 30%
+→ At this pace, compaction before 100% completion
+→ Instruct early abort
+
+After early abort:
+├── Agent reports partial results and sleeps
+├── Orchestrator splits remainder into new tasks
+└── Delegates to different agent instance
+```
+
+#### Handling Blockages
+
+```
+Detecting blockages:
+├── Receive "blocked" status from agent
+├── Progress stagnating in progress checks
+└── Same work taking too long
+
+Response options:
+1. Split task → Separate the stuck part
+2. Suggest alternative approach → Different agent or method
+3. Report to user → When judgment needed (e.g., technical constraints)
+
+Important: Don't decide arbitrarily; report to user when judgment needed
+```
+
+```
+Example report to user:
+
+"A problem occurred during implementation.
+
+[Problem]
+IME candidate window position adjustment is difficult due to Android OS restrictions
+
+[Tried]
+- adjustResize: Doesn't work on some devices
+- WindowInsets API: Unstable
+
+[Options]
+A. Continue with limited device support
+B. Give up this feature and focus on others
+C. Stop development
+
+Which do you choose?"
+```
+
+#### Completion Judgment and Reporting
+
+```
+Completion judgment:
+├── All subtasks complete (pending_subtasks empty)
+├── Send confirmation to user
+└── User OK → Complete / Additional requests → Continue
+
+Completion report format:
+├── Deliverables: What was accomplished
+├── Unresolved items: What couldn't be done (with reasons)
+└── Improvement suggestions: Future possibilities
+```
+
+```
+Example completion report:
+
+"Development is complete.
+
+[Deliverables]
+- Android SSH/SFTP client
+- Special key panel for backtick input
+
+[Unresolved Items]
+- IME candidate window position adjustment (due to Android OS restrictions)
+
+[Improvement Suggestions]
+- Consider custom IME support in future
+- Develop limited-device-support version
+
+Please confirm. Is there anything else you need?"
+```
+
+#### Orchestrator Sleep Triggers
+
+Specialized agents sleep on "1 task completion = sleep", but the orchestrator continuously manages user dialogue, so sleep timing differs.
+
+**Sleep Triggers (whichever comes first)**:
+
+```
+1. Context 70% reached
+   → Forced sleep to avoid compaction
+   → Save progress summary to external memory and end session
+
+2. Idle state for 1 hour
+   → No user instructions AND no in-progress tasks to agents
+   → Utilize waiting time for decay and consolidation
+
+3. Explicit termination from user
+   → "That's all for today", "See you tomorrow", etc.
+```
+
+**Comparison with Specialized Agents**:
+
+| | Specialized Agent | Orchestrator |
+|--|------------------|--------------|
+| Sleep trigger | Task completion | Any of the 3 conditions above |
+| Sleep processing | Same | Same |
+| Decay/Archive | Same | Same |
+
+The sleep processing content (decay, archive, forced pruning) is exactly the same. Only the trigger conditions differ.
+
+**Significance of Idle Sleep**:
+
+```
+Traditional: Do nothing while waiting
+    ↓
+Proposed: Sleep during waiting for memory consolidation
+    → Resume next session in "organized state"
+    → Load recent conversation from external memory via search
+```
+
+**Resume Flow After Intermediate Sleep**:
+
+```
+Context 70% reached OR 1 hour idle
+    ↓
+Sleep (save learnings, decay, archive, prune)
+    ↓
+Session ends
+    ↓
+User: "Continue where we left off"
+    ↓
+New instance starts
+    ↓
+Search from external memory:
+├── Recent conversation history
+├── In-progress task state
+└── Related past learnings
+    ↓
+Continue
+```
+
+**Handling Large-Scale Tasks**:
+
+```
+User: "Develop an application"
+    ↓
+Orchestrator starts
+├── Task decomposition (100 subtasks)
+├── Instructions to agents, receive results
+├── Context accumulates...
+├── 70% reached → Intermediate sleep
+│   └── Progress: "30/100 complete, next is auth feature"
+├── New instance starts
+├── Load progress from external memory
+├── Continue...
+└── All complete → Report to user → Final sleep
+```
+
+This prevents information loss due to compaction regardless of task size, while persisting orchestrator learnings.
+
+#### Progress Meta-Information Management
+
+During intermediate sleep, "progress state" is saved to external memory and loaded with highest priority at startup. This is treated as special information different from normal learnings.
+
+**Progress Information Structure**:
+
+```json
+{
+  "id": "progress_current",
+  "type": "progress_state",
+  "content": "Application development task progress",
+  "progress": {
+    "user_request_id": "req_001",
+    "original_instruction": "Develop an application",
+    "status": "in_progress",
+    "completed_subtasks": [
+      {"id": "subtask_01", "summary": "Requirements definition", "result": "complete"},
+      {"id": "subtask_02", "summary": "Basic design", "result": "complete"}
+    ],
+    "current_subtask": {
+      "id": "subtask_03",
+      "summary": "Implement authentication feature",
+      "status": "pending"
+    },
+    "pending_subtasks": ["subtask_04", "subtask_05", "..."],
+    "context_summary": "Requirements complete, basic design complete, now in implementation phase. Auth will use JWT."
+  },
+  "tags": ["progress", "in_progress"],
+  "strength": 10.0,
+  "created_at": "2025-01-12T10:00:00Z",
+  "updated_at": "2025-01-12T14:30:00Z"
+}
+```
+
+**Startup Loading Order**:
+
+```python
+def prepare_orchestrator_context(orchestrator):
+    # 1. Highest priority: In-progress task progress state
+    progress = get_progress_state(orchestrator.agent_id)
+
+    # 2. Short-term memory: Recent conversation history (~1 hour)
+    recent_history = get_recent_conversation(
+        time_window="1hour",
+        max_turns=20
+    )
+
+    # 3. Related past learnings
+    relevant_memories = search_external_memory(
+        query=current_task_summary if progress else "",
+        perspectives=orchestrator.perspectives
+    )
+
+    context = {
+        "progress_state": progress,          # Highest priority
+        "recent_conversation": recent_history,  # Short-term memory
+        "relevant_memories": relevant_memories   # Search results from long-term memory
+    }
+    return context
+```
+
+**Special Treatment of Progress Information**:
+
+| Item | Normal Learning | Progress Information |
+|------|----------------|---------------------|
+| Strength management | Yes | Fixed (high strength) |
+| Decay | Yes | None (until task completion) |
+| Loading order | Search results | Highest priority |
+| Lifecycle | Permanent | Deleted on task completion |
+
+Progress information is deleted upon task completion, and "learnings" extracted from its content are saved as normal memories.
+
+#### Progress State External Recording (User Visibility)
+
+The orchestrator records progress state to an external file whenever issuing tasks or receiving results. This serves dual purposes:
+1. Information that persists across orchestrator intermediate sleep
+2. Progress report that users can check at any time
+
+**Progress State File Structure**:
+
+```json
+{
+  "user_request": {
+    "id": "req_001",
+    "original": "Develop Android SSH/SFTP client with Japanese input support",
+    "clarified": "Personal use, backtick/IME/special key support"
+  },
+
+  "overall": {
+    "phase": "Implementation Phase",
+    "progress_percent": 40,
+    "status": "in_progress",
+    "last_updated": "2025-01-12T15:30:00Z"
+  },
+
+  "task_tree": {
+    "Research": {
+      "status": "completed",
+      "children": {
+        "Existing client research": {"status": "completed", "output": []},
+        "IME API research": {"status": "completed", "output": ["docs/ime_api_notes.md"]},
+        "OSS library evaluation": {"status": "completed", "output": ["docs/library_comparison.md"]}
+      }
+    },
+    "Design": {
+      "status": "completed",
+      "depends_on": ["Research"],
+      "children": {
+        "Architecture design": {"status": "completed", "output": ["docs/architecture.md"]},
+        "TerminalView design": {"status": "completed", "output": []},
+        "Special key panel design": {"status": "completed", "output": []}
+      }
+    },
+    "Implementation": {
+      "status": "in_progress",
+      "depends_on": ["Design"],
+      "children": {
+        "Foundation setup": {"status": "completed", "output": ["app/build.gradle"]},
+        "SSH connection": {"status": "completed", "output": ["app/src/main/java/SSHClient.kt"]},
+        "TerminalView": {
+          "status": "in_progress",
+          "children": {
+            "Basic rendering": {"status": "completed", "output": ["app/src/main/java/TerminalView.kt"]},
+            "Key input handling": {"status": "in_progress", "output": []},
+            "Special key panel": {"status": "pending", "depends_on": ["Key input handling"], "output": []}
+          }
+        },
+        "Integration": {"status": "pending", "depends_on": ["SSH connection", "TerminalView"], "output": []},
+        "SFTP": {"status": "pending", "depends_on": ["Integration"], "output": []}
+      }
+    }
+  },
+
+  "current": {
+    "task": "Key input handling",
+    "agent_session": "session_008",
+    "started_at": "2025-01-12T15:20:00Z",
+    "last_progress_check": {
+      "time": "2025-01-12T15:30:00Z",
+      "progress": "40%",
+      "context_usage": "35%",
+      "status": "on_track"
+    }
+  },
+
+  "history": [
+    {
+      "time": "2025-01-12T14:00:00Z",
+      "type": "user_decision",
+      "issue": "SFTP directory listing is slow",
+      "decision": "Continue with slow implementation",
+      "options_presented": ["Different library", "SSH only", "Continue as-is", "More research"]
+    }
+  ]
+}
+```
+
+**Recorded Information**:
+
+| Information | Description | Purpose |
+|-------------|-------------|---------|
+| user_request | Original user instruction and clarified version | Context understanding |
+| overall | Overall progress rate, current phase | Quick status check |
+| task_tree | Task dependencies and completion status | Detailed progress |
+| current | Currently executing task details | What's happening now |
+| history | Problems and decisions history | Past context |
+
+**Update Timing**:
+
+```
+On task instruction:
+├── Add new task to task_tree
+├── Update current
+└── Update overall.last_updated
+
+On result receipt:
+├── Update task_tree status to completed
+├── Record file paths in output
+├── Update current to next task
+└── Recalculate overall.progress_percent
+
+On problem occurrence:
+├── Record problem and options in history
+├── Record decision after user responds
+└── Update current.status
+```
+
+Users can view this file directly (JSON/YAML) or through a future Viewer to check progress.
+
+#### Artifact Handoff (Hybrid Approach)
+
+Since specialized agents sleep after each task (1 task = 1 session), subsequent agents don't know about previous agents' artifacts. The orchestrator manages this handoff.
+
+**Basic Policy**: Pass file paths + add hints when necessary
+
+```python
+# Simple case: File paths only
+task_instruction = {
+    "task": "Implement special key panel",
+    "description": "Implement panel for Ctrl, Esc, backtick and other special keys",
+    "input_files": [
+        "app/src/main/java/TerminalView.kt"  # Retrieved from progress state
+    ]
+}
+
+# Complex integration task: Add hints
+task_instruction = {
+    "task": "SSH/TerminalView integration",
+    "description": "Integrate SSH connection with terminal display",
+    "input_files": [
+        "app/src/main/java/SSHClient.kt",
+        "app/src/main/java/TerminalView.kt"
+    ],
+    "integration_hints": "Connect SSHClient.getInputStream() to TerminalView.setInputStream()"
+}
+```
+
+**Orchestrator's Decision Criteria**:
+
+```
+File paths sufficient:
+├── Only referencing a single file
+├── Usage is obvious from reading the file
+└── Simple dependencies
+
+Hints needed:
+├── Integrating multiple files
+├── Specific API or method must be used
+├── Need to carry over design decisions from previous task
+└── Non-obvious connection method
+```
+
+**Integration with Progress State**:
+
+```python
+def prepare_task_instruction(orchestrator, task):
+    # Get artifacts from dependent tasks via progress state
+    dependencies = get_dependencies(task, orchestrator.progress_state)
+    input_files = []
+
+    for dep in dependencies:
+        dep_output = orchestrator.progress_state.task_tree[dep].output
+        input_files.extend(dep_output)
+
+    instruction = {
+        "task": task.name,
+        "description": task.description,
+        "input_files": input_files
+    }
+
+    # Add hints for complex integration tasks
+    if task.is_integration and len(input_files) > 1:
+        instruction["integration_hints"] = generate_integration_hints(task, dependencies)
+
+    return instruction
+```
+
+This approach ensures:
+1. Simplicity by default (just passing file paths)
+2. Orchestrator adds hints only when necessary
+3. Avoid over-engineering
+4. Agents read and understand files (same as human developers)
+
 ### 3.4 External Memory Structure (For Specialized Agents)
 
 #### Basic Structure
@@ -1127,6 +1692,79 @@ Agents execute the sleep phase on every task completion. Reasons:
    - Adapts to increased task volume from computer performance improvements
    - Flexible adjustment through decay rate parameters
 
+#### Critical Constraint: Specialized Agents Do NOT Have Intermediate Sleep
+
+**Specialized agents do not have intermediate sleep. Only the orchestrator has intermediate sleep.**
+
+```
+Orchestrator:
+├── Manages multiple subtasks
+├── Has intermediate sleep (context 70%, idle 1 hour, etc.)
+├── Can save progress state to external memory and resume
+└── Maintains dialogue with user
+
+Specialized Agent:
+├── 1 task = 1 session = 1 sleep
+├── No intermediate sleep
+├── Works continuously until task completion
+└── Compaction = Task failure
+```
+
+**Why specialized agents don't have intermediate sleep**:
+
+```
+Problem if specialized agent had intermediate sleep:
+
+Task: "Implement TerminalView"
+├── Start implementation
+├── Context 70% → Attempt intermediate sleep
+│   └── Save "implementation progress so far"...can we?
+├── New instance starts
+├── Load "continuation" from external memory
+│   └── But fine-grained implementation context is lost
+├── "What was this variable for?" "Why did I design it this way?"
+└── Consistency collapse, nearly starting from scratch
+```
+
+Code and design context ("why I did it this way") is hard to summarize, and "flow of thought" breaks when interrupted→resumed. That's why specialized agents complete tasks in one session.
+
+#### Compaction = Task Failure
+
+When compaction occurs in a specialized agent, it is treated as **task failure**.
+
+```python
+# Failure report from agent
+{
+    "status": "failed",
+    "reason": "context_overflow",
+    "progress_before_failure": "40%",
+    "work_done": "Only rendering part complete",
+    "context_usage_at_failure": "95%"
+}
+```
+
+**Orchestrator's Response**:
+
+```
+When receiving compaction failure:
+
+1. Determine cause
+   ├── Task was too large
+   │   └── Report contains "heavy workload", "takes long time"
+   └── Task was too ambiguous
+       └── Report contains "spec unclear", "requirement check", "trial and error"
+
+2. Learning
+   ├── "Tasks of this size need splitting"
+   └── "Tasks of this type need clear specifications"
+
+3. Retry
+   ├── Split task and re-delegate
+   └── Or clarify specifications and re-delegate
+```
+
+Through this learning, the orchestrator can appropriately split similar tasks next time.
+
 #### Learning Extraction Prompt Example
 
 ```
@@ -1396,6 +2034,24 @@ By always writing learnings to external memory at task completion and ending the
 
 ### 3.10 Input Processing Layer
 
+#### Role and Design Principles
+
+The input processing layer receives user input and performs pre-processing before passing to the orchestrator. Implemented with lightweight LLM (Haiku, etc.) to make the following decisions:
+
+```
+Input Processing Layer Decision Flow:
+
+1. Detect number of topics
+   - Less than 10 → Pass directly to orchestrator
+   - 10 or more → Warning/option presentation
+
+2. Check input size
+   - Small → Pass directly to orchestrator
+   - Large → Generate summary for orchestrator
+```
+
+**Important Design Decision**: The input processing layer does NOT perform "interpretation" or "ambiguity resolution." Ambiguous instructions are passed as-is to the orchestrator. Ambiguity resolution is handled by the orchestrator through questions to the user.
+
 #### Separation of Summary and Details
 
 Design to prevent orchestrator from overflowing context with large inputs.
@@ -1422,28 +2078,216 @@ Combine 10 sentences → Summary (~500 tokens)
 
 ```python
 class InputProcessor:
+    ITEM_THRESHOLD = 10  # Warn above this
+
     def process(self, input):
         items = self.detect_multiple_items(input)
 
-        if len(items) > THRESHOLD:  # e.g., 20 items
-            return {
-                "type": "negotiation_needed",
-                "message": f"There are {len(items)} items.",
-                "options": [
-                    "Please specify the 10 highest priority",
-                    "Process all (will take time)",
-                    "Divide by category and process sequentially"
-                ]
-            }
+        if len(items) < self.ITEM_THRESHOLD:
+            # Few topics, pass directly to orchestrator
+            return {"type": "ok", "items": items}
 
-        return {"type": "ok", "items": items}
+        # Many topics, negotiate
+        return {
+            "type": "negotiation_needed",
+            "message": f"There are {len(items)} items.",
+            "options": [
+                "Please specify the 10 highest priority",
+                "Process all (will take time)",
+                "Divide by category and process sequentially"
+            ]
+        }
 ```
+
+### 3.11 Tool Definition
+
+#### Agent Execution Capabilities
+
+Agents manage "memory" with external memory and sleep phases, but task execution also requires "action capabilities." These are defined as tools.
+
+```
+Agent Composition:
+├── Role definition (role)
+├── Perspective definition (perspectives)
+├── External memory (external_memory_ref)
+├── System prompt (system_prompt)
+└── Tool definition (tools) ← Action capabilities
+```
+
+#### JSON Structure for Tool Definition
+
+Tools are defined using JSON Schema. We adopt a format compatible with Claude API and MCP (Model Context Protocol).
+
+```json
+{
+  "agent_id": "research_agent_01",
+  "role": "Research Agent",
+  "perspectives": ["Information Source", "Reliability", "Relevance", "Coverage", "Recency"],
+  "tools": [
+    {
+      "name": "web_search",
+      "description": "Search the web to retrieve information",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Search query"
+          },
+          "max_results": {
+            "type": "integer",
+            "description": "Maximum number of results to retrieve",
+            "default": 10
+          }
+        },
+        "required": ["query"]
+      }
+    },
+    {
+      "name": "web_fetch",
+      "description": "Fetch content from a specified URL",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "URL to fetch"
+          }
+        },
+        "required": ["url"]
+      }
+    }
+  ],
+  "external_memory_ref": "memory://research_agent_01"
+}
+```
+
+#### Tool Execution Flow
+
+```
+1. LLM determines tool necessity
+   ├── Match task content against tool description
+   └── Output tool_use block if needed
+
+2. Host side executes tool
+   ├── Extract name and input from tool_use
+   ├── Call actual tool function
+   └── Return result as tool_result
+
+3. LLM receives result and continues
+```
+
+```python
+def execute_task_with_tools(agent, task):
+    # Prepare context
+    context = prepare_context(agent, task)
+
+    while True:
+        # Query LLM
+        response = llm.complete(
+            system_prompt=agent.system_prompt,
+            tools=agent.tools,
+            messages=context.messages
+        )
+
+        # Check for tool use
+        if response.stop_reason == "tool_use":
+            for tool_use in response.tool_uses:
+                # Execute tool
+                result = execute_tool(tool_use.name, tool_use.input)
+                # Add result to context
+                context.add_tool_result(tool_use.id, result)
+        else:
+            # Complete
+            return response.content
+```
+
+#### Tool Examples by Role
+
+| Role | Tools | Purpose |
+|------|-------|---------|
+| Research Agent | web_search, web_fetch | Information gathering |
+| Implementation Agent | read_file, write_file, edit_file, run_code | Code creation/execution |
+| Test Agent | run_tests, analyze_coverage | Test execution/analysis |
+| Integration Agent | api_call, database_query | External system integration |
+| Orchestrator | ask_user, delegate_task | User dialogue/task delegation |
+
+#### Learning from Tool Usage
+
+Tool usage experiences are also saved to external memory and become subjects of learning.
+
+```json
+{
+  "id": "mem_701",
+  "content": "Encountered GitHub API rate limit",
+  "learnings": {
+    "Information Source": "GitHub API limited to 60 requests/hour (unauthenticated)",
+    "Reliability": "Rate limit error returns 429 status",
+    "Relevance": "Auth token needed for large repository surveys"
+  },
+  "tags": ["GitHub", "API", "rate limit", "tool:api_call"],
+  "strength": 1.0
+}
+```
+
+Next time a similar task searches for "GitHub API," this learning will be retrieved, enabling proactive planning around rate limits.
 
 ---
 
 ## Chapter 4: Formation of Expertise
 
-### 4.1 Education Process: Seeds of Expertise
+### 4.1 Two Pathways to Expertise
+
+Agents can acquire expertise through two methods:
+
+```
+Pathway 1: Education Process (Textbook + Test)
+├── When prepared materials exist
+├── Efficiently learn structured knowledge
+└── Form basic "seeds" of expertise
+
+Pathway 2: Learning by Doing
+├── When no materials exist, or new domains
+├── Learn through actual task execution
+└── Leverage LLM's pre-trained knowledge
+```
+
+**LLMs already possess "more than expert knowledge."** The education process is not "learning from zero" but rather "weighting which knowledge to prioritize."
+
+### 4.2 Learning by Doing: Expertise Formation Without Materials
+
+When textbooks are unavailable, agents learn through practice. LLM's pre-trained knowledge serves as the base, and actually-used knowledge gets reinforced.
+
+```
+Learning by Doing Flow:
+
+Task 1: "Evaluate this supplier"
+├── LLM generates response using pre-trained knowledge
+├── Extract perspectives used (cost, quality, etc.) as learnings
+├── Sleep → Save to external memory
+└── User feedback → Record success/failure
+
+Task 2: "Evaluate another supplier"
+├── Search external memory for previous learnings
+├── "Cost-focused approach succeeded last time" hits
+├── Apply same approach
+└── Success → "Cost-focused" strength increases
+
+... repeat ...
+
+Result: "This agent is good at cost-focused evaluation" personality forms
+```
+
+**Differences from Textbook Learning**:
+
+| Aspect | Textbook Learning | Learning by Doing |
+|--------|------------------|-------------------|
+| Initial knowledge | Systematic from materials | LLM's pre-trained knowledge |
+| Learning efficiency | High (structured materials) | Lower (trial and error needed) |
+| Applicable scope | Fields with materials | Any field |
+| Personality formation | Depends on materials | Depends on experience |
+
+### 4.3 Education Process: Seeds of Expertise
 
 A new agent's external memory starts empty. A process equivalent to "education" in humans is needed.
 
@@ -1612,7 +2456,7 @@ def spaced_repetition(agent, test_questions):
         agent.sleep()
 ```
 
-### 4.2 Why Personality Emerges
+### 4.4 Why Personality Emerges
 
 **Same LLM (identical parameters) develops personality through different external memory**:
 
@@ -1629,7 +2473,7 @@ Agent B: Many quality tasks
     → Personality of "Quality-focused Agent B"
 ```
 
-### 4.3 Formation of Consistency
+### 4.5 Formation of Consistency
 
 ```
 Past decision: "Prioritized quality over delivery" → Success
@@ -1643,7 +2487,7 @@ Makes quality-priority decision again
 Consistency of "quality-focused" personality
 ```
 
-### 4.4 Differentiation of Perspectives
+### 4.6 Differentiation of Perspectives
 
 ```
 [Current Multi-agent]
@@ -2011,6 +2855,19 @@ Agents should similarly aim for "better than now" rather than perfection.
 | Orchestrator | Agent operating with the same mechanism as specialized agents. Only role and perspectives differ |
 | Unified design | Design principle where orchestrator and specialized agents share the same mechanisms (external memory, strength management, decay, etc.) |
 | Implicit feedback | User signals detected without explicit statement (e.g., using result as-is = success) |
+| Idle sleep | Sleep triggered when no user instructions and no in-progress tasks to agents for a certain period (e.g., 1 hour) |
+| Intermediate sleep | Sleep executed before task completion, such as when context reaches 70%. Saves progress to external memory for resumption |
+| Tool | JSON Schema-based function definition for agent action capabilities. Compatible with Claude API and MCP |
+| Progress state | Task progress information saved during intermediate sleep. Loaded with highest priority at startup |
+| Learning by doing | Learning method to form expertise through actual task execution without materials |
+| Input processing layer | Layer that pre-processes user input before passing to orchestrator. Implemented with lightweight LLM |
+| Early abort | Orchestrator intervention to stop an agent before it hits compaction |
+| Progress monitoring | Mechanism where orchestrator periodically checks agent progress and context usage |
+| Compaction failure | Task failure when compaction occurs in specialized agent. Caused by orchestrator's insufficient task splitting |
+| Task size | Size of a task. Must be split to a size completable within specialized agent's context window |
+| Progress state file | External file updated by orchestrator on task instruction/result receipt. Used for user progress checking and recovery from intermediate sleep |
+| Task tree | Tree structure representing task dependencies and completion status. Recorded in progress state file |
+| Artifact handoff | Mechanism to pass previous agent's artifacts to subsequent agents. Hybrid approach of file paths + hints when necessary |
 
 ## Appendix B: Related Research
 
