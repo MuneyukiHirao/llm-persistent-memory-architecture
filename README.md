@@ -92,6 +92,48 @@ Form expertise through the same process as human education:
 Textbook → Read in chunks → Test → Sleep (decay) → Repeat
 ```
 
+### 6. Specialized Agent Constraint: 1 Task = 1 Sleep
+
+Specialized agents do NOT have intermediate sleep. 1 task = 1 session = 1 sleep.
+
+```
+Orchestrator:
+├── Manages multiple subtasks
+├── Has intermediate sleep (context 70%, idle 1 hour, etc.)
+└── Can save progress state to external storage and resume
+
+Specialized Agent:
+├── 1 task = 1 session = 1 sleep
+├── No intermediate sleep
+├── Compaction = Task failure
+└── Orchestrator responsible for splitting tasks to appropriate size
+```
+
+### 7. Progress Monitoring and Early Abort
+
+Orchestrator monitors agent progress and intervenes before compaction.
+
+```
+Progress Monitoring Flow:
+Delegate task to agent
+    ↓
+Periodic progress checks (e.g., every 10 minutes)
+    ↓
+Judgment:
+├── On track → Continue
+├── Danger (progress < context usage) → Instruct early abort
+└── Blocked → Report to user
+```
+
+### 8. Progress State External Recording
+
+Orchestrator records progress to external file on task instruction/result receipt.
+
+- Users can check progress at any time
+- Recovery possible after orchestrator intermediate sleep
+- Manages task dependency tree (task_tree)
+- Records artifact file paths for handoff to subsequent tasks
+
 ## Overall Structure
 
 ```
@@ -119,9 +161,16 @@ Textbook → Read in chunks → Test → Sleep (decay) → Repeat
 └─────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────┐
-│  Sleep Phase (Periodic Batch)                                │
+│  Sleep Phase (Per Task Completion)                           │
 ├─────────────────────────────────────────────────────────────┤
-│  Stop tasks → Decay processing → Archive → Resume tasks     │
+│  Task complete → Extract learnings → Decay → Archive → Sleep │
+└─────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────┐
+│  Progress State File (External Record)                       │
+├─────────────────────────────────────────────────────────────┤
+│  Task tree, dependencies, artifact paths, issue/decision log │
+│  → User can check progress, used for recovery from sleep     │
 └─────────────────────────────────────────────────────────────┘
 ```
 
