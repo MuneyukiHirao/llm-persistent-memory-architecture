@@ -240,7 +240,206 @@ Each agent has:
 - Used for filtering during search
 - Perspective differences create viewpoint differences, enabling multi-perspective judgment through multi-agent collaboration
 
-### 3.3 External Memory Structure
+### 3.3 Orchestrator
+
+The orchestrator is not just a routing handler, but a **hub for evaluation and learning**.
+
+#### Expanded Role
+
+```
+Traditional understanding:
+Orchestrator = Just routes tasks to appropriate agents
+
+Expanded understanding:
+Orchestrator = Hub for evaluation and learning
+  ├── Routing decisions
+  ├── Task result evaluation (success/failure judgment)
+  ├── User profile learning
+  ├── Agent expertise score updates
+  └── Conversation context retention
+```
+
+#### Memory Managed by Orchestrator
+
+| Memory Type | Content | Management Method |
+|------------|---------|-------------------|
+| User Profile | Expression habits, preferences, reaction patterns | DL-based reinforcement learning |
+| Agent Expertise | Who succeeds at which tasks | Task result statistics + user evaluation |
+| Routing Model | Who to assign in which situations | Learning from above two inputs |
+| Conversation Context | Current conversation flow | Held within session, cleared at session end |
+| Assignment History | Who was assigned which tasks | Decays over time |
+
+#### Evaluation Flow
+
+```
+1. Orchestrator → Requests task from specialized agent
+2. Specialized agent → Returns result (+ sleeps)
+3. Orchestrator → Presents to user
+4. User → Reacts (explicit/implicit feedback)
+5. Orchestrator → Judges success/failure
+   ├→ Updates agent expertise score
+   ├→ Updates user profile
+   └→ Updates routing model
+```
+
+**Important Design Decision: Orchestrator Performs Evaluation**
+
+```
+Problem:
+Agent self-evaluation → Discrepancy with human expectations never corrected
+"Processed correctly" and "Human was satisfied" are different
+
+Solution:
+Orchestrator observes human feedback and evaluates
+→ Reflects in agent expertise score
+→ Influences next routing decision
+```
+
+#### Implicit Feedback Detection
+
+Users don't always explicitly say "good/bad." Detect these signals:
+
+| Signal | Interpretation | Impact on Score |
+|--------|---------------|-----------------|
+| Used result as-is | Success | +1.0 |
+| Used after minor edits | Partial success | +0.5 |
+| Used after major edits | Partial failure | -0.3 |
+| Requested redo | Failure | -1.0 |
+| Re-requested to different agent | Routing error | No agent score change, routing model update |
+
+#### User Profile Learning
+
+```python
+class UserProfile:
+    """Learns user preferences and tendencies"""
+
+    # Expression preferences
+    preferred_formality: float      # Formal ↔ Casual
+    preferred_detail_level: float   # Detailed ↔ Concise
+    preferred_explanation: float    # Explanation-focused ↔ Result-focused
+
+    # Reaction patterns
+    patience_level: float           # Can wait ↔ Wants immediately
+    error_tolerance: float          # Tolerant ↔ Strict
+
+    # Expertise
+    domain_expertise: dict          # Expertise level by field
+
+    def update_from_feedback(self, task_result, user_reaction):
+        """Update profile from user reaction"""
+        # Learn preferences through reinforcement learning
+        pass
+```
+
+#### Agent Expertise Score
+
+```python
+class AgentExpertise:
+    """Agent expertise managed by orchestrator"""
+
+    agent_id: str
+
+    # Success rate by task type
+    success_rate_by_task_type: dict  # {"estimation": 0.85, "negotiation": 0.72, ...}
+
+    # User satisfaction (evaluated by orchestrator)
+    user_satisfaction_score: float   # 0.0 - 1.0
+
+    # Recent performance (with decay)
+    recent_performance: list         # Last N successes/failures
+
+    def update_from_task_result(self, task_type, success, user_feedback):
+        """Update score from task result"""
+        # Update success rate
+        # Update user satisfaction
+        pass
+```
+
+#### Orchestrator Sleep
+
+Unlike specialized agents, the orchestrator **sleeps at conversation session end**.
+
+```python
+def orchestrator_sleep(orchestrator_memory):
+    """
+    Execute at conversation session end
+
+    Differences from specialized agents:
+    - Per session, not per task
+    - Clears conversation context
+    - Meta-knowledge has very low decay rate
+    """
+
+    # 1. Clear conversation context (no need to persist)
+    orchestrator_memory.conversation_context = None
+
+    # 2. Assignment history decays
+    for history in orchestrator_memory.assignment_history:
+        history.strength *= 0.99  # Gradual decay
+
+    # 3. Agent expertise doesn't decay (explicit updates only)
+    # → Already updated via update_from_task_result()
+
+    # 4. User profile doesn't decay (accumulative)
+    # → Already updated via update_from_feedback()
+
+    # 5. Routing model updated via batch learning
+    if should_retrain_routing_model():
+        retrain_routing_model(orchestrator_memory)
+```
+
+#### Routing Model Learning
+
+```python
+class RoutingModel:
+    """Learns which agent to route to"""
+
+    def predict(self, task_summary, user_profile):
+        """
+        Input:
+        - task_summary: Task summary
+        - user_profile: User preferences and tendencies
+
+        Output:
+        - agent_id: Recommended agent
+        - confidence: Confidence level
+        """
+        pass
+
+    def train(self, training_data):
+        """
+        Training data:
+        - task_summary: Task summary
+        - assigned_agent: Actually assigned agent
+        - success: Whether successful
+        - user_satisfaction: User satisfaction
+        """
+        # Reinforcement learning or bandit algorithm
+        pass
+```
+
+#### Design Key Points
+
+```
+1. Separation of Evaluation
+   - Agent: Saves own learnings (objective facts)
+   - Orchestrator: Judges success/failure (user perspective)
+
+2. Separation of Learning
+   - Agent: Learns domain knowledge
+   - Orchestrator: Learns user adaptation
+
+3. Separation of Sleep Timing
+   - Agent: Per task
+   - Orchestrator: Per session
+
+4. Feedback Loop
+   User reaction → Orchestrator evaluation → Agent expertise update
+                                          → Routing improvement
+                                          → User profile update
+```
+
+### 3.4 External Memory Structure (For Specialized Agents)
 
 #### Basic Structure
 
@@ -278,7 +477,7 @@ Each agent has:
 - `candidate_count`: Number of times referenced as search candidate but not used
 - Separating these two prevents noise reinforcement
 
-### 3.4 Search Algorithm: Two-Stage Structure
+### 3.5 Search Algorithm: Two-Stage Structure
 
 #### Design Core: Separation of Relevance Filter and Priority Ranking
 
@@ -717,7 +916,7 @@ def detect_never_used_memories(agent_memory):
     return warnings
 ```
 
-### 3.5 Strength Management and Memory Consolidation
+### 3.6 Strength Management and Memory Consolidation
 
 #### Clarification of Strength's Role
 
@@ -915,7 +1114,7 @@ def update_impact(memory, context):
     memory.strength += impact * 0.2
 ```
 
-### 3.6 Task Execution Flow
+### 3.7 Task Execution Flow
 
 ```
 1. Task received (summary + pointer to details)
@@ -984,7 +1183,7 @@ From this task experience, extract one sentence of learning for each perspective
 Omit perspectives that don't apply.
 ```
 
-### 3.7 Sleep Phase
+### 3.8 Sleep Phase (For Specialized Agents)
 
 #### Why Sleep is Needed
 
@@ -1215,7 +1414,7 @@ Benefits:
 - Conversation context managed by orchestrator
 ```
 
-### 3.8 Addressing Compaction Problem
+### 3.9 Addressing Compaction Problem
 
 #### Problem
 
@@ -1238,7 +1437,7 @@ Compaction problem doesn't occur
 
 By always writing learnings to external memory at task completion and ending the session, important information is persisted before compaction.
 
-### 3.9 Input Processing Layer
+### 3.10 Input Processing Layer
 
 #### Separation of Summary and Details
 
@@ -1852,6 +2051,11 @@ Agents should similarly aim for "better than now" rather than perfection.
 | Re-activation | Returning archived memory to active status through explicit deep recall |
 | Capacity limit | Upper limit on total weight of active memories. Prevents breakdown during long-term operation |
 | Forced pruning | Process of archiving memories in order of lowest consolidation when over capacity |
+| Orchestrator | Hub for routing, evaluation, and learning. Manages conversation context and user profiles |
+| User profile | User preferences and tendencies learned by orchestrator. Includes expression habits and reaction patterns |
+| Agent expertise score | Performance score for each agent managed by orchestrator based on user feedback |
+| Routing model | Model that predicts which agent to assign based on task and user profile |
+| Implicit feedback | User signals detected without explicit statement (e.g., using result as-is = success) |
 
 ## Appendix B: Related Research
 
