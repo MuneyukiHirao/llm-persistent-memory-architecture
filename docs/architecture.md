@@ -1800,7 +1800,10 @@ Agents should similarly aim for "better than now" rather than perfection.
 | MemGPT / Letta | NeurIPS 2023 | OS-style virtual memory management, self-editing memory | [arXiv:2310.08560](https://arxiv.org/abs/2310.08560) |
 | A-MEM | NeurIPS 2025 | Self-organizing memory using Zettelkasten method | [arXiv:2502.12110](https://arxiv.org/abs/2502.12110) |
 | HippoRAG | NeurIPS 2024 | Hippocampal indexing theory + PageRank | [arXiv:2405.14831](https://arxiv.org/abs/2405.14831) |
-| Google Titan | 2024 | Test-time learning Neural Memory, Surprise-based learning | [arXiv:2501.00663](https://arxiv.org/abs/2501.00663) |
+| Google Titan | 2024 | Test-time learning Neural Memory, Surprise-based learning, adaptive decay | [arXiv:2501.00663](https://arxiv.org/abs/2501.00663) |
+| MemLong | 2024 | External memory retrieval for long text modeling, retrieval-frequency-based pruning | [arXiv:2408.16967](https://arxiv.org/abs/2408.16967) |
+| H-MEM | 2025 | Hierarchical memory architecture, multi-level search with positional indexing | [arXiv:2507.22925](https://arxiv.org/abs/2507.22925) |
+| Mem0 | 2025 | Production-ready agent long-term memory, graph-based memory representation | [arXiv:2504.19413](https://arxiv.org/abs/2504.19413) |
 
 ### B.2 Continual Learning & Catastrophic Forgetting
 
@@ -1818,11 +1821,19 @@ Agents should similarly aim for "better than now" rather than perfection.
 | Ebbinghaus Forgetting Curve | Law that memory retention decays exponentially over time (R = e^(-t/S)) |
 | Spaced Repetition | Learning technique promoting memory retention through spaced review |
 
-### B.4 Survey Papers
+### B.4 Spaced Repetition & Memory Strength Models
+
+| Research | Published | Summary | Paper/Link |
+|----------|-----------|---------|-------|
+| FSRS | 2022- | ML-optimized spaced repetition scheduler based on DSR model | [GitHub](https://github.com/open-spaced-repetition/fsrs4anki) |
+| DRL-SRS | Applied Sciences 2024 | Deep reinforcement learning for spaced repetition optimization, half-life regression model | [MDPI](https://www.mdpi.com/2076-3417/14/13/5591) |
+
+### B.5 Survey Papers
 
 | Research | Published | Summary | Paper |
 |----------|-----------|---------|-------|
 | From Human Memory to AI Memory | 2025 | Comprehensive survey systematizing the relationship between human memory and AI memory | [arXiv:2504.15965](https://arxiv.org/abs/2504.15965) |
+| Memory in the Age of AI Agents | 2025 | 102-page unified framework for agent memory (Forms, Functions, Dynamics) | [arXiv:2512.13564](https://arxiv.org/abs/2512.13564) |
 
 ---
 

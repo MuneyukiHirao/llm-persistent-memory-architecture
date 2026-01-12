@@ -1798,7 +1798,10 @@ Titanは理想的なソリューションだが、実用化には時間がかか
 | MemGPT / Letta | NeurIPS 2023 | OS風仮想メモリ管理、自己編集メモリ | [arXiv:2310.08560](https://arxiv.org/abs/2310.08560) |
 | A-MEM | NeurIPS 2025 | Zettelkasten手法による自己組織化メモリ | [arXiv:2502.12110](https://arxiv.org/abs/2502.12110) |
 | HippoRAG | NeurIPS 2024 | 海馬インデックス理論 + PageRank | [arXiv:2405.14831](https://arxiv.org/abs/2405.14831) |
-| Google Titan | 2024 | テスト時学習Neural Memory、Surprise-based learning | [arXiv:2501.00663](https://arxiv.org/abs/2501.00663) |
+| Google Titan | 2024 | テスト時学習Neural Memory、Surprise-based learning、適応的減衰 | [arXiv:2501.00663](https://arxiv.org/abs/2501.00663) |
+| MemLong | 2024 | 外部メモリ検索による長文モデリング、検索頻度に基づく剪定 | [arXiv:2408.16967](https://arxiv.org/abs/2408.16967) |
+| H-MEM | 2025 | 階層的メモリアーキテクチャ、位置インデックス付き多段検索 | [arXiv:2507.22925](https://arxiv.org/abs/2507.22925) |
+| Mem0 | 2025 | 実用的なエージェント長期メモリ、グラフベース記憶表現 | [arXiv:2504.19413](https://arxiv.org/abs/2504.19413) |
 
 ### B.2 継続学習・破滅的忘却
 
@@ -1816,11 +1819,19 @@ Titanは理想的なソリューションだが、実用化には時間がかか
 | Ebbinghaus Forgetting Curve | 記憶保持率が時間とともに指数関数的に減衰する法則（R = e^(-t/S)） |
 | Spaced Repetition | 間隔を空けた復習により記憶定着を促進する学習手法 |
 
-### B.4 サーベイ論文
+### B.4 間隔反復・記憶強度モデル
+
+| 研究 | 発表 | 概要 | 論文/リンク |
+|------|------|------|------|
+| FSRS | 2022- | DSRモデルに基づく機械学習最適化間隔反復スケジューラ | [GitHub](https://github.com/open-spaced-repetition/fsrs4anki) |
+| DRL-SRS | Applied Sciences 2024 | 深層強化学習による間隔反復最適化、半減期回帰モデル | [MDPI](https://www.mdpi.com/2076-3417/14/13/5591) |
+
+### B.5 サーベイ論文
 
 | 研究 | 発表 | 概要 | 論文 |
 |------|------|------|------|
 | From Human Memory to AI Memory | 2025 | 人間の記憶とAIメモリの関係を体系的に整理したサーベイ | [arXiv:2504.15965](https://arxiv.org/abs/2504.15965) |
+| Memory in the Age of AI Agents | 2025 | 102ページのエージェントメモリ統合フレームワーク（Forms, Functions, Dynamics） | [arXiv:2512.13564](https://arxiv.org/abs/2512.13564) |
 
 ---
 
