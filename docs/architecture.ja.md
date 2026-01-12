@@ -318,53 +318,219 @@ access_count の役割：
 ○ 「関連性がある候補の中で、どれを優先するか」
 ```
 
-#### 検索の実装
+#### 検索の実装：学習可能なスコアラー
+
+Stage 2の優先度ランキングでは、単純な線形加重ではなく、**ニューラルネットワークによる学習可能なスコアラー**を使用する。これにより、特徴量間の非線形な相互作用を学習できる。
+
+**なぜ学習可能にするか**：
+
+```
+線形加重の限界：
+- 「強度が高いが古い」vs「強度は低いが最近使った」の最適なトレードオフは？
+- impact_scoreが高い情報は、類似度が少し低くても優先すべき？
+- 原則タグがついた情報はどれくらい優先すべき？
+
+→ これらの最適な組み合わせは、人間が事前に決められない
+→ タスク成功/失敗のフィードバックから学習させる
+```
+
+**特徴量の設計**：
+
+ニューラルネットワークへの入力は9次元の特徴ベクトル。これらの特徴量自体は固定であり、ネットワークが学習するのは「これらをどう組み合わせるか」という関数。
 
 ```python
-import math
+def extract_features(memory, query, task_context, agent):
+    """特徴量抽出（これらの値は固定、変わらない）"""
+    return {
+        # 1. 類似度（ベクトル検索の結果）
+        'similarity': compute_similarity(memory.embedding, query.embedding),
 
-def search_with_strength(query, perspective, agent_memory):
-    # Stage 1: 関連性フィルタ
-    # 類似度が一定以上のものだけを候補にする
+        # 2. 全体の強度
+        'strength': memory.strength,
+
+        # 3. 観点別の強度（タスクの観点に対応）
+        'perspective_strength': memory.strength_by_perspective.get(
+            task_context.perspective, memory.strength
+        ),
+
+        # 4. 使用率（候補になった回数に対する実際の使用率）
+        'access_ratio': memory.access_count / max(1, memory.candidate_count),
+
+        # 5. 新鮮さ（最終アクセスからの経過時間）
+        'recency': 1.0 / (1 + memory.days_since_last_access),
+
+        # 6. インパクトスコア（過去の貢献度）
+        'impact_score': memory.impact_score,
+
+        # 7. タグ重複数（クエリとのタグ一致度）
+        'tag_overlap': len(set(memory.tags) & set(query.tags)),
+
+        # 8. 原則フラグ（基本原則かどうか）
+        'is_principle': 1.0 if 'principle' in memory.tags else 0.0,
+
+        # 9. 観点一致（タスクの観点についての学びを持っているか）
+        'perspective_match': 1.0 if task_context.perspective in memory.learnings else 0.0,
+    }
+```
+
+**スコアラーのアーキテクチャ**：
+
+2層のMLP（Multi-Layer Perceptron）を使用。入力次元が小さく（9次元）、訓練データも限られるため、シンプルなアーキテクチャが適切。
+
+```python
+import torch
+import torch.nn as nn
+
+class Scorer(nn.Module):
+    """
+    学習可能なスコアラー
+
+    アーキテクチャ: 9 → 16 → 1（約180パラメータ）
+    - 入力: 9次元の特徴ベクトル
+    - 隠れ層: 16ユニット（ReLU活性化）
+    - 出力: 0-1のスコア（Sigmoid）
+    """
+    def __init__(self, input_dim=9, hidden_dim=16, dropout=0.1):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim),  # 9×16 + 16 = 160パラメータ
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim, 1),           # 16×1 + 1 = 17パラメータ
+            nn.Sigmoid()
+        )
+
+    def forward(self, features):
+        """
+        features: [batch_size, 9] の特徴ベクトル
+        returns: [batch_size, 1] のスコア（0-1）
+        """
+        return self.net(features)
+```
+
+**なぜ2層か**：
+
+```
+入力次元が小さい（9次元）場合、深いネットワークは不要：
+- 9次元 → 3層以上にすると過学習しやすい
+- 2層でも非線形な相互作用は学習可能
+- 例：「強度×新鮮さ」「類似度×インパクト」のような掛け算的効果
+
+パラメータ数も重要：
+- 約180パラメータ = 数百〜数千のタスク結果で安定学習
+- エージェントの初期段階でも比較的早く収束
+- 過学習リスクが低い
+```
+
+**検索の実装**：
+
+```python
+def search_with_learned_scorer(query, perspective, agent_memory, scorer):
+    # Stage 1: 関連性フィルタ（変更なし）
     candidates = vector_search(
-        query, 
-        agent_memory, 
+        query,
+        agent_memory,
         limit=50,
-        similarity_threshold=0.3  # これ以下は無関係と判断
+        similarity_threshold=0.3
     )
-    
-    # Stage 2: 候補内での優先度ランキング
+
+    # Stage 2: 学習済みスコアラーで優先度ランキング
+    task_context = TaskContext(perspective=perspective)
+
     for memory in candidates:
-        # 各スコアを正規化（0-1）
-        sim_score = memory.similarity  # コサイン類似度、すでに0-1
-        
-        # 強度は対数スケールで正規化（大きな差を圧縮）
-        strength = memory.strength_by_perspective.get(
-            perspective, 
-            memory.strength
-        )
-        strength_score = min(1.0, math.log1p(strength) / math.log1p(10))
-        
-        # 新鮮さ（1年で0になる線形減衰）
-        days_old = (now() - memory.last_access).days
-        recency_score = max(0, 1 - (days_old / 365))
-        
-        # 類似度はすでに閾値以上なので、ここでは強度の重みを上げてもよい
-        memory.final_score = (
-            sim_score * 0.40 +         # 意味的関連性
-            strength_score * 0.40 +     # 強度（経験の反映）
-            recency_score * 0.20        # 新鮮さ
-        )
-    
+        # 特徴量を抽出
+        features = extract_features(memory, query, task_context, agent_memory.agent)
+        feature_vector = torch.tensor([list(features.values())], dtype=torch.float32)
+
+        # スコアラーで予測
+        with torch.no_grad():
+            memory.final_score = scorer(feature_vector).item()
+
     # 再ランキングして上位を返す
     ranked = sorted(candidates, key=lambda m: m.final_score, reverse=True)
     return ranked[:10]
 ```
 
-**重みの設計意図**：
-- Stage 1で関連性は既に確保されている
-- Stage 2では強度と新鮮さの影響を大きくできる
-- 類似度 0.40 + 強度 0.40 + 新鮮さ 0.20
+**学習プロセス**：
+
+タスクの成功/失敗をフィードバックとして、スコアラーを更新する。
+
+```python
+def train_scorer(scorer, optimizer, task_result, used_memories, unused_candidates):
+    """
+    タスク結果に基づいてスコアラーを学習
+
+    正例: タスク成功時に実際に使われた情報 → 高スコアが正解
+    負例: 候補になったが使われなかった情報 → 低スコアが正解
+    """
+    scorer.train()
+
+    # 正例のラベル作成
+    positive_features = [extract_features(m, ...) for m in used_memories]
+    positive_labels = torch.ones(len(used_memories), 1)
+
+    # 負例のラベル作成（一部サンプリング）
+    negative_samples = random.sample(unused_candidates, min(len(unused_candidates), len(used_memories) * 2))
+    negative_features = [extract_features(m, ...) for m in negative_samples]
+    negative_labels = torch.zeros(len(negative_samples), 1)
+
+    # タスク結果による重み付け
+    if task_result == "success":
+        weight = 1.0  # 成功時は通常の重み
+    else:
+        weight = 0.5  # 失敗時は弱めに学習（情報選択以外の原因かもしれない）
+
+    # 損失計算と更新
+    all_features = torch.tensor(positive_features + negative_features, dtype=torch.float32)
+    all_labels = torch.cat([positive_labels, negative_labels])
+
+    predictions = scorer(all_features)
+    loss = nn.BCELoss()(predictions, all_labels) * weight
+
+    optimizer.zero_grad()
+    loss.backward()
+    optimizer.step()
+```
+
+**学習の安定化**：
+
+```python
+class ScorerWithFallback:
+    """
+    学習初期は線形スコアリングにフォールバック
+    十分なデータが溜まったら学習済みスコアラーを使用
+    """
+    def __init__(self, scorer, min_training_samples=100):
+        self.scorer = scorer
+        self.min_training_samples = min_training_samples
+        self.training_samples = 0
+
+    def score(self, features):
+        if self.training_samples < self.min_training_samples:
+            # 学習初期は線形スコアリング（従来方式）
+            return (
+                features['similarity'] * 0.40 +
+                features['strength'] * 0.40 +
+                features['recency'] * 0.20
+            )
+        else:
+            # 十分学習したらニューラルネットを使用
+            feature_vector = torch.tensor([list(features.values())], dtype=torch.float32)
+            with torch.no_grad():
+                return self.scorer(feature_vector).item()
+```
+
+**設計の要点**：
+
+| 要素 | 設計 | 理由 |
+|------|------|------|
+| 特徴量 | 9次元、固定 | ベクトル検索やメタデータから計算される値 |
+| ネットワーク | 2層MLP | 入力次元が小さい、過学習防止 |
+| パラメータ数 | 約180 | 数百タスクで学習可能 |
+| 学習信号 | タスク成功/失敗 | 人間と同じ「使って良かった」フィードバック |
+| フォールバック | 線形スコア | 学習初期の安定性確保 |
+
+この設計により、スコアリングは運用しながら自動的に最適化される。エージェントの経験が蓄積されるにつれ、そのエージェントに最適なスコアリング関数が学習される。
 
 #### 検索漏れ対策：クエリ拡張
 

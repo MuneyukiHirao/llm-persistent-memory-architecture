@@ -320,53 +320,219 @@ Role of access_count:
 ○ "Among relevant candidates, which to prioritize"
 ```
 
-#### Search Implementation
+#### Search Implementation: Learnable Scorer
+
+For Stage 2 priority ranking, instead of simple linear weighting, we use a **neural network-based learnable scorer**. This allows learning non-linear interactions between features.
+
+**Why Make It Learnable**:
+
+```
+Limitations of linear weighting:
+- "High strength but old" vs "low strength but recently used" - what's the optimal tradeoff?
+- Should information with high impact_score be prioritized even with slightly lower similarity?
+- How much should information with principle tags be prioritized?
+
+→ Humans cannot predetermine the optimal combination of these
+→ Let the system learn from task success/failure feedback
+```
+
+**Feature Design**:
+
+The input to the neural network is a 9-dimensional feature vector. These features themselves are fixed; what the network learns is "how to combine them."
 
 ```python
-import math
+def extract_features(memory, query, task_context, agent):
+    """Feature extraction (these values are fixed, don't change)"""
+    return {
+        # 1. Similarity (result from vector search)
+        'similarity': compute_similarity(memory.embedding, query.embedding),
 
-def search_with_strength(query, perspective, agent_memory):
-    # Stage 1: Relevance Filter
-    # Only consider items above certain similarity
+        # 2. Overall strength
+        'strength': memory.strength,
+
+        # 3. Perspective-specific strength (for task's perspective)
+        'perspective_strength': memory.strength_by_perspective.get(
+            task_context.perspective, memory.strength
+        ),
+
+        # 4. Usage ratio (actual uses relative to candidate count)
+        'access_ratio': memory.access_count / max(1, memory.candidate_count),
+
+        # 5. Recency (time since last access)
+        'recency': 1.0 / (1 + memory.days_since_last_access),
+
+        # 6. Impact score (past contribution)
+        'impact_score': memory.impact_score,
+
+        # 7. Tag overlap (tag match with query)
+        'tag_overlap': len(set(memory.tags) & set(query.tags)),
+
+        # 8. Principle flag (whether it's a fundamental principle)
+        'is_principle': 1.0 if 'principle' in memory.tags else 0.0,
+
+        # 9. Perspective match (has learnings for task's perspective)
+        'perspective_match': 1.0 if task_context.perspective in memory.learnings else 0.0,
+    }
+```
+
+**Scorer Architecture**:
+
+Uses a 2-layer MLP (Multi-Layer Perceptron). With small input dimension (9) and limited training data, a simple architecture is appropriate.
+
+```python
+import torch
+import torch.nn as nn
+
+class Scorer(nn.Module):
+    """
+    Learnable Scorer
+
+    Architecture: 9 → 16 → 1 (~180 parameters)
+    - Input: 9-dimensional feature vector
+    - Hidden layer: 16 units (ReLU activation)
+    - Output: Score 0-1 (Sigmoid)
+    """
+    def __init__(self, input_dim=9, hidden_dim=16, dropout=0.1):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim),  # 9×16 + 16 = 160 parameters
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim, 1),           # 16×1 + 1 = 17 parameters
+            nn.Sigmoid()
+        )
+
+    def forward(self, features):
+        """
+        features: [batch_size, 9] feature vector
+        returns: [batch_size, 1] score (0-1)
+        """
+        return self.net(features)
+```
+
+**Why 2 Layers**:
+
+```
+With small input dimension (9), deep networks are unnecessary:
+- 9 dimensions → 3+ layers tend to overfit
+- 2 layers can still learn non-linear interactions
+- Examples: multiplicative effects like "strength × recency", "similarity × impact"
+
+Parameter count also matters:
+- ~180 parameters = stable learning with hundreds to thousands of task results
+- Converges relatively quickly even in agent's early stage
+- Low overfitting risk
+```
+
+**Search Implementation**:
+
+```python
+def search_with_learned_scorer(query, perspective, agent_memory, scorer):
+    # Stage 1: Relevance Filter (unchanged)
     candidates = vector_search(
         query,
         agent_memory,
         limit=50,
-        similarity_threshold=0.3  # Below this is considered irrelevant
+        similarity_threshold=0.3
     )
 
-    # Stage 2: Priority Ranking within candidates
+    # Stage 2: Priority ranking with learned scorer
+    task_context = TaskContext(perspective=perspective)
+
     for memory in candidates:
-        # Normalize each score (0-1)
-        sim_score = memory.similarity  # Cosine similarity, already 0-1
+        # Extract features
+        features = extract_features(memory, query, task_context, agent_memory.agent)
+        feature_vector = torch.tensor([list(features.values())], dtype=torch.float32)
 
-        # Normalize strength on log scale (compress large differences)
-        strength = memory.strength_by_perspective.get(
-            perspective,
-            memory.strength
-        )
-        strength_score = min(1.0, math.log1p(strength) / math.log1p(10))
-
-        # Recency (linear decay to 0 over 1 year)
-        days_old = (now() - memory.last_access).days
-        recency_score = max(0, 1 - (days_old / 365))
-
-        # Since similarity is already above threshold, can weight strength higher
-        memory.final_score = (
-            sim_score * 0.40 +         # Semantic relevance
-            strength_score * 0.40 +     # Strength (experience reflection)
-            recency_score * 0.20        # Recency
-        )
+        # Predict with scorer
+        with torch.no_grad():
+            memory.final_score = scorer(feature_vector).item()
 
     # Re-rank and return top results
     ranked = sorted(candidates, key=lambda m: m.final_score, reverse=True)
     return ranked[:10]
 ```
 
-**Weight design intent**:
-- Stage 1 already ensures relevance
-- Stage 2 can increase influence of strength and recency
-- Similarity 0.40 + Strength 0.40 + Recency 0.20
+**Learning Process**:
+
+Update the scorer using task success/failure as feedback.
+
+```python
+def train_scorer(scorer, optimizer, task_result, used_memories, unused_candidates):
+    """
+    Train scorer based on task results
+
+    Positive: Information actually used when task succeeded → high score is correct
+    Negative: Information that became candidate but wasn't used → low score is correct
+    """
+    scorer.train()
+
+    # Create positive labels
+    positive_features = [extract_features(m, ...) for m in used_memories]
+    positive_labels = torch.ones(len(used_memories), 1)
+
+    # Create negative labels (sample subset)
+    negative_samples = random.sample(unused_candidates, min(len(unused_candidates), len(used_memories) * 2))
+    negative_features = [extract_features(m, ...) for m in negative_samples]
+    negative_labels = torch.zeros(len(negative_samples), 1)
+
+    # Weight by task result
+    if task_result == "success":
+        weight = 1.0  # Normal weight on success
+    else:
+        weight = 0.5  # Weaker learning on failure (might be causes other than info selection)
+
+    # Loss calculation and update
+    all_features = torch.tensor(positive_features + negative_features, dtype=torch.float32)
+    all_labels = torch.cat([positive_labels, negative_labels])
+
+    predictions = scorer(all_features)
+    loss = nn.BCELoss()(predictions, all_labels) * weight
+
+    optimizer.zero_grad()
+    loss.backward()
+    optimizer.step()
+```
+
+**Learning Stabilization**:
+
+```python
+class ScorerWithFallback:
+    """
+    Fall back to linear scoring in early learning stage
+    Use learned scorer after sufficient data accumulated
+    """
+    def __init__(self, scorer, min_training_samples=100):
+        self.scorer = scorer
+        self.min_training_samples = min_training_samples
+        self.training_samples = 0
+
+    def score(self, features):
+        if self.training_samples < self.min_training_samples:
+            # Linear scoring during early learning (traditional method)
+            return (
+                features['similarity'] * 0.40 +
+                features['strength'] * 0.40 +
+                features['recency'] * 0.20
+            )
+        else:
+            # Use neural net after sufficient learning
+            feature_vector = torch.tensor([list(features.values())], dtype=torch.float32)
+            with torch.no_grad():
+                return self.scorer(feature_vector).item()
+```
+
+**Design Summary**:
+
+| Element | Design | Reason |
+|---------|--------|--------|
+| Features | 9 dimensions, fixed | Values computed from vector search and metadata |
+| Network | 2-layer MLP | Small input dimension, prevent overfitting |
+| Parameters | ~180 | Learnable with hundreds of tasks |
+| Learning signal | Task success/failure | Same "worked well when used" feedback as humans |
+| Fallback | Linear score | Stability during early learning |
+
+With this design, scoring is automatically optimized during operation. As an agent's experience accumulates, the optimal scoring function for that agent is learned.
 
 #### Search Miss Prevention: Query Expansion
 
