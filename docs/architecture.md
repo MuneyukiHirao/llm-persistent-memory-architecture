@@ -214,9 +214,9 @@ In current LLM/RAG, even when information is referenced, nothing happens to the 
 └─────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────┐
-│  Sleep Phase (Periodic Batch)                                │
+│  Sleep Phase (On Task Completion)                            │
 ├─────────────────────────────────────────────────────────────┤
-│  Stop task acceptance → Decay → Archive → Resume acceptance │
+│  Save learnings → Decay → Archive → Prune → End session     │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -769,18 +769,23 @@ def update_consolidation(memory):
 
 **Relationship between Consolidation Level and Decay Rate**:
 
-| Consolidation Level | access_count | Decay Rate | Meaning |
-|---------------------|--------------|------------|---------|
-| 0 | 0-4 | 0.95 | Unconsolidated (5% daily decay) |
-| 1 | 5-14 | 0.97 | Slightly consolidated |
-| 2 | 15-29 | 0.98 | Consolidated |
-| 3 | 30-59 | 0.99 | Well consolidated |
-| 4 | 60-99 | 0.995 | Strongly consolidated |
-| 5 | 100+ | 0.998 | Fully consolidated (almost no decay) |
+Decay rates are calculated by dividing "target daily decay" by "expected task count." For example, if targeting 5%/day decay for unconsolidated memories with 10 tasks/day, per-task decay rate is `0.95^(1/10) ≈ 0.995`.
+
+| Consolidation Level | access_count | Decay Rate/Task | Daily Decay at 10 tasks/day |
+|---------------------|--------------|-----------------|----------------------------|
+| 0 | 0-4 | 0.995 | ~5%/day |
+| 1 | 5-14 | 0.997 | ~3%/day |
+| 2 | 15-29 | 0.998 | ~2%/day |
+| 3 | 30-59 | 0.999 | ~1%/day |
+| 4 | 60-99 | 0.9995 | ~0.5%/day |
+| 5 | 100+ | 0.9998 | ~0.2%/day |
 
 ```python
-DECAY_RATES = {
-    0: 0.95,   # Unconsolidated: normal decay
+# Core design: Distribute target daily decay across expected tasks
+EXPECTED_TASKS_PER_DAY = 10  # Adjust based on operations
+
+DAILY_DECAY_TARGETS = {
+    0: 0.95,   # Unconsolidated: target 5%/day decay
     1: 0.97,
     2: 0.98,
     3: 0.99,
@@ -788,9 +793,20 @@ DECAY_RATES = {
     5: 0.998,  # Fully consolidated: almost no decay
 }
 
+# Calculate per-task decay rates
+DECAY_RATES = {
+    level: target ** (1 / EXPECTED_TASKS_PER_DAY)
+    for level, target in DAILY_DECAY_TARGETS.items()
+}
+
 def get_decay_rate(memory):
     return DECAY_RATES[memory.consolidation_level]
 ```
+
+**Parameter Tuning Guidelines**:
+- Adjust `EXPECTED_TASKS_PER_DAY` to match actual task frequency
+- Higher task frequency environments: increase value (smaller decay per task)
+- Lower task frequency environments: decrease value (larger decay per task)
 
 #### Two-Stage Reinforcement Process (Separating Reference and Use)
 
@@ -927,8 +943,33 @@ def update_impact(memory, context):
    - Create new entry in external memory
    - Add links to related existing memories
 
-7. Session end (context clear)
+7. Sleep phase (always executed on task completion)
+   - Update consolidation levels
+   - Apply decay
+   - Archive below threshold
+   - Forced pruning if over capacity
+
+8. Session end (context clear)
 ```
+
+**Important Design Decision: Sleep on Every Task**
+
+Agents execute the sleep phase on every task completion. Reasons:
+
+1. **Context Separation**
+   - Conversation continuity with users is handled by the orchestrator
+   - Agents receive clearly interpreted tasks
+   - Agents don't need to remember conversation context
+
+2. **Persistence Guarantee**
+   - Learnings are immediately saved to external memory
+   - Compaction problem is completely eliminated
+   - No information loss between tasks
+
+3. **Consistent Decay**
+   - Decay is applied per task
+   - Adapts to increased task volume from computer performance improvements
+   - Flexible adjustment through decay rate parameters
 
 #### Learning Extraction Prompt Example
 
@@ -981,10 +1022,15 @@ The sleep phase executes three processes in sequence:
 ```python
 def sleep_phase(agent_memory):
     """
-    Execute once daily OR after 1 hour idle
+    Execute on each task completion
+
+    Design rationale:
+    - Orchestrator maintains conversation context
+    - Agents handle specialized judgment only
+    - Per-task sleep ensures immediate persistence of learnings
     """
 
-    # 1. Stop task acceptance
+    # 1. Stop task acceptance (this agent instance will terminate)
     agent_memory.accepting_tasks = False
 
     # 2. Update consolidation levels
@@ -999,10 +1045,9 @@ def sleep_phase(agent_memory):
         for perspective in memory.strength_by_perspective:
             memory.strength_by_perspective[perspective] *= decay_rate
 
-        # Recently accessed items offset decay
-        days_since_access = (now() - memory.last_access).days
-        if days_since_access < 7:
-            memory.strength *= 1.02  # Slight offset
+        # Note: With per-task sleep, "recent access" offset is unnecessary
+        # Memories used just now already have increased strength,
+        # so net effect of reinforcement minus decay naturally strengthens them
 
     # 4. Archive below threshold (logical forgetting)
     for memory in agent_memory.active():
@@ -1144,11 +1189,31 @@ The main purpose of human sleep replay is "transfer from hippocampus to neocorte
 
 What's needed:
 1. Reinforcement through reference (during task execution, real-time after use confirmation)
-2. Consolidation-based decay (during sleep, batch)
-3. Capacity management and forced pruning (during sleep, batch)
+2. Consolidation-based decay (on task completion, in sleep phase)
+3. Capacity management and forced pruning (on task completion, in sleep phase)
 4. Impact bonus (during task execution, real-time)
 
 These four are sufficient. Simpler is correct.
+
+#### Sleep Timing Design
+
+```
+[Traditional thinking]
+Sleep = Daily batch processing
+    ↓
+Problem: As computer performance improves, task volume increases
+         Large amounts of information accumulate within a day
+         Decay can't keep up
+
+[This Architecture]
+Sleep = On every task completion
+    ↓
+Benefits:
+- Constant decay regardless of task volume
+- Immediate persistence of learnings
+- Complete elimination of compaction problem
+- Conversation context managed by orchestrator
+```
 
 ### 3.8 Addressing Compaction Problem
 
