@@ -978,6 +978,12 @@ This approach ensures:
   "tags": ["Part A", "Supplier Y", "Delay", "Fire"],
   "embedding": [...],
 
+  "scope": {
+    "level": "domain",
+    "domain": "procurement",
+    "project": null
+  },
+
   "strength": 1.0,
   "strength_by_perspective": {
     "Cost": 2.1,
@@ -998,6 +1004,93 @@ This approach ensures:
 - `access_count`: Number of times actually used
 - `candidate_count`: Number of times referenced as search candidate but not used
 - Separating these two prevents noise reinforcement
+
+#### Scope-Based Knowledge Hierarchy Management
+
+To "nurture" agents across multiple projects, knowledge scope is explicitly managed.
+
+**Three Scope Levels**:
+
+| Level | Description | Example | Lifespan |
+|-------|-------------|---------|----------|
+| `universal` | Universal principles independent of technology or project | "Always ensure transaction integrity" | Permanent |
+| `domain` | Knowledge applicable to specific technology areas | "pgvector's IVFflat is effective for 10K+ records" | Until technology changes |
+| `project` | Decisions/settings for specific projects | "similarity_threshold=0.3" | This project only |
+
+**Scope Structure**:
+
+```json
+// Universal knowledge (valid for any project)
+{
+  "content": "Add indexes to foreign keys for queries with many JOINs",
+  "scope": {
+    "level": "universal",
+    "domain": null,
+    "project": null
+  }
+}
+
+// Domain knowledge (specific technology area)
+{
+  "content": "Vector indexes are ineffective for less than 10,000 records",
+  "scope": {
+    "level": "domain",
+    "domain": "vector-database",
+    "project": null
+  }
+}
+
+// Project-specific
+{
+  "content": "similarity_threshold=0.3 is appropriate for Phase 1",
+  "scope": {
+    "level": "project",
+    "domain": null,
+    "project": "llm-persistent-memory-phase1"
+  }
+}
+```
+
+**Scope-Aware Search**:
+
+```python
+def search_with_scope(query, agent_id, project_context):
+    """Search with scope consideration"""
+
+    current_project = project_context["project"]["id"]
+    related_domains = project_context["related_domains"]
+
+    # Determine search scope
+    scope_filter = {
+        "$or": [
+            # Always search universal knowledge
+            {"scope.level": "universal"},
+            # Search related domain knowledge
+            {"scope.level": "domain", "scope.domain": {"$in": related_domains}},
+            # Search current project-specific knowledge
+            {"scope.level": "project", "scope.project": current_project}
+        ]
+    }
+
+    # Knowledge specific to other projects is excluded
+    candidates = vector_search(query, agent_id, scope_filter)
+    return candidates
+```
+
+**Project Transition Behavior**:
+
+```
+【Project A Completion】
+  universal: 50 items → Inherited to next project
+  domain:X: 30 items → Inherited if related domain
+  project:A: 100 items → Archived (can reactivate if needed)
+
+【Project B Start】
+  Search targets: universal + related domain + project:B (new)
+  Not search targets: project:A (archived)
+```
+
+This allows agents to accumulate universal expertise while experiencing multiple projects. Project-specific decisions are archived when the project ends and not referenced in new projects.
 
 ### 3.5 Search Algorithm: Two-Stage Structure
 
@@ -1777,6 +1870,60 @@ From this task experience, extract one sentence of learning for each perspective
 - Future alternatives
 Omit perspectives that don't apply.
 ```
+
+#### Learning Extraction with Scope Judgment
+
+To "nurture" agents across multiple projects, learning extraction includes scope judgment (universal / domain / project).
+
+**Prompt Example with Scope Judgment**:
+
+```
+Extract learnings from the task execution results.
+
+【Task Description】
+{task_description}
+
+【Result】
+{task_result}
+
+【Learning Extraction and Scope Judgment】
+Classify learnings into the following three levels:
+
+1. Universal learnings (universal)
+   - Universal principles independent of technology or project
+   - Example: "Complex queries are easier to understand when built incrementally"
+
+2. Domain-specific learnings (domain)
+   - Knowledge applicable to specific technology areas
+   - Specify the relevant domain (e.g., vector-database, postgresql, procurement)
+   - Example: "In pgvector, inner product is faster than cosine distance"
+
+3. Project-specific learnings (project)
+   - Knowledge about specific decisions/settings for this project
+   - Example: "5 perspectives were sufficient for the procurement agent"
+
+It's OK if there are no learnings at a particular level.
+Try to abstract learnings to the most universal level possible.
+```
+
+**Promoting Abstraction**:
+
+```
+Project-specific experience:
+"similarity_threshold=0.3 worked well for Phase 1"
+
+  ↓ Encourage abstraction
+
+Promote to domain knowledge:
+"For vector search, start with a loose threshold (0.2-0.4) and adjust"
+
+  ↓ Further abstraction
+
+Promote to universal principle:
+"For search system parameters, start with conservative values and adjust gradually"
+```
+
+Through this abstraction, project-specific experiences accumulate as universal expertise.
 
 ### 3.8 Sleep Phase (For Specialized Agents)
 
