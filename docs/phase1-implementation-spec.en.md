@@ -98,6 +98,11 @@ CREATE TABLE agent_memory (
     embedding vector(1536),
     tags TEXT[] DEFAULT '{}',
 
+    -- Scope (Knowledge Hierarchy Management)
+    scope_level VARCHAR(16) DEFAULT 'project',  -- universal / domain / project
+    scope_domain VARCHAR(64),                    -- Domain name (for domain level)
+    scope_project VARCHAR(64),                   -- Project ID (for project level)
+
     -- Strength Management
     strength FLOAT DEFAULT 1.0,
     strength_by_perspective JSONB,  -- {"cost": 1.2, "delivery": 0.8, ...}
@@ -131,6 +136,7 @@ CREATE INDEX idx_agent_memory_agent_id ON agent_memory(agent_id);
 CREATE INDEX idx_agent_memory_status ON agent_memory(status);
 CREATE INDEX idx_agent_memory_tags ON agent_memory USING GIN(tags);
 CREATE INDEX idx_agent_memory_strength ON agent_memory(strength);
+CREATE INDEX idx_agent_memory_scope ON agent_memory(scope_level, scope_domain, scope_project);
 
 -- Phase 1: No vector index (assuming less than 10,000 records)
 -- Add the following when exceeding 10,000 records:
@@ -158,7 +164,55 @@ CREATE INDEX idx_agent_memory_strength ON agent_memory(strength);
 }'::JSONB
 ```
 
-### 3.3 Agent Definition (Phase 1: Code Definition)
+### 3.3 Scope-Based Knowledge Hierarchy Management
+
+To "nurture" agents across multiple projects, knowledge scope is managed explicitly.
+
+**Three Scope Levels**:
+
+| Level | scope_level | scope_domain | scope_project | Purpose |
+|-------|-------------|--------------|---------------|---------|
+| Universal | `universal` | NULL | NULL | Principles valid for any project |
+| Domain | `domain` | Has value | NULL | Knowledge for specific technology areas |
+| Project | `project` | NULL | Has value | Project-specific decisions |
+
+**Scope Setting Examples**:
+
+```sql
+-- Universal knowledge
+INSERT INTO agent_memory (agent_id, content, scope_level)
+VALUES ('agent_01', 'Always ensure transaction integrity', 'universal');
+
+-- Domain knowledge
+INSERT INTO agent_memory (agent_id, content, scope_level, scope_domain)
+VALUES ('agent_01', 'pgvector IVFflat is effective for 10K+ records', 'domain', 'vector-database');
+
+-- Project-specific
+INSERT INTO agent_memory (agent_id, content, scope_level, scope_project)
+VALUES ('agent_01', 'similarity_threshold=0.3 is appropriate', 'project', 'llm-persistent-memory-phase1');
+```
+
+**Scope Filtering During Search**:
+
+```sql
+-- Search for knowledge valid in current project
+SELECT * FROM agent_memory
+WHERE agent_id = 'agent_01'
+  AND status = 'active'
+  AND (
+    scope_level = 'universal'
+    OR (scope_level = 'domain' AND scope_domain = ANY(ARRAY['vector-database', 'postgresql']))
+    OR (scope_level = 'project' AND scope_project = 'llm-persistent-memory-phase1')
+  )
+ORDER BY strength DESC;
+```
+
+**Phase 1 Operation**:
+
+Since Phase 1 is a single project, scope_level will primarily use `project`.
+However, the schema includes it for future expansion.
+
+### 3.4 Agent Definition (Phase 1: Code Definition)
 
 ```python
 # config/agents.py
@@ -183,7 +237,7 @@ def get_initial_strength_by_perspective(agent_id: str) -> dict:
     return {p: 1.0 for p in agent["perspectives"]}
 ```
 
-### 3.4 Timestamp Design
+### 3.5 Timestamp Design
 
 | Column | Purpose |
 |--------|---------|
@@ -410,6 +464,13 @@ class Phase1Config:
     # === Embedding ===
     embedding_model: str = "text-embedding-3-small"
     embedding_dimension: int = 1536
+
+    # === Scope (Cross-Project Knowledge Management) ===
+    current_project_id: str = "llm-persistent-memory-phase1"
+    related_domains: List[str] = field(
+        default_factory=lambda: ["vector-database", "postgresql", "llm-applications"]
+    )
+    default_scope_level: str = "project"  # Default scope for new memories
 
     def get_decay_rate(self, consolidation_level: int) -> float:
         """Get per-task decay rate based on consolidation level"""
