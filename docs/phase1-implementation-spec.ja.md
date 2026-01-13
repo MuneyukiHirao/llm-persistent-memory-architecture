@@ -98,6 +98,11 @@ CREATE TABLE agent_memory (
     embedding vector(1536),
     tags TEXT[] DEFAULT '{}',
 
+    -- スコープ（知識の階層管理）
+    scope_level VARCHAR(16) DEFAULT 'project',  -- universal / domain / project
+    scope_domain VARCHAR(64),                    -- ドメイン名（domain レベルの場合）
+    scope_project VARCHAR(64),                   -- プロジェクトID（project レベルの場合）
+
     -- 強度管理
     strength FLOAT DEFAULT 1.0,
     strength_by_perspective JSONB,  -- {"コスト": 1.2, "納期": 0.8, ...}
@@ -131,6 +136,7 @@ CREATE INDEX idx_agent_memory_agent_id ON agent_memory(agent_id);
 CREATE INDEX idx_agent_memory_status ON agent_memory(status);
 CREATE INDEX idx_agent_memory_tags ON agent_memory USING GIN(tags);
 CREATE INDEX idx_agent_memory_strength ON agent_memory(strength);
+CREATE INDEX idx_agent_memory_scope ON agent_memory(scope_level, scope_domain, scope_project);
 
 -- Phase 1: ベクトルインデックスなし（1万件未満想定）
 -- 1万件超えたら以下を追加:
@@ -158,7 +164,55 @@ CREATE INDEX idx_agent_memory_strength ON agent_memory(strength);
 }'::JSONB
 ```
 
-### 3.3 エージェント定義（Phase 1: コード内定義）
+### 3.3 スコープによる知識の階層管理
+
+エージェントをプロジェクトをまたいで「育てていく」ために、知識のスコープを管理する。
+
+**3つのスコープレベル**：
+
+| レベル | scope_level | scope_domain | scope_project | 用途 |
+|--------|-------------|--------------|---------------|------|
+| 汎用 | `universal` | NULL | NULL | どのプロジェクトでも有効な原則 |
+| ドメイン | `domain` | 値あり | NULL | 特定技術領域の知識 |
+| プロジェクト | `project` | NULL | 値あり | プロジェクト固有の決定事項 |
+
+**スコープ設定の例**：
+
+```sql
+-- 汎用知識
+INSERT INTO agent_memory (agent_id, content, scope_level)
+VALUES ('agent_01', 'トランザクション整合性を常に確保する', 'universal');
+
+-- ドメイン知識
+INSERT INTO agent_memory (agent_id, content, scope_level, scope_domain)
+VALUES ('agent_01', 'pgvectorのIVFflatは1万件超で有効', 'domain', 'vector-database');
+
+-- プロジェクト固有
+INSERT INTO agent_memory (agent_id, content, scope_level, scope_project)
+VALUES ('agent_01', 'similarity_threshold=0.3が適切', 'project', 'llm-persistent-memory-phase1');
+```
+
+**検索時のスコープフィルタリング**：
+
+```sql
+-- 現在のプロジェクトで有効な知識を検索
+SELECT * FROM agent_memory
+WHERE agent_id = 'agent_01'
+  AND status = 'active'
+  AND (
+    scope_level = 'universal'
+    OR (scope_level = 'domain' AND scope_domain = ANY(ARRAY['vector-database', 'postgresql']))
+    OR (scope_level = 'project' AND scope_project = 'llm-persistent-memory-phase1')
+  )
+ORDER BY strength DESC;
+```
+
+**Phase 1 での運用**：
+
+Phase 1 は単一プロジェクトのため、scope_level は主に `project` を使用。
+ただし、将来の拡張を見据えてスキーマに含めておく。
+
+### 3.4 エージェント定義（Phase 1: コード内定義）
 
 ```python
 # config/agents.py
@@ -182,7 +236,7 @@ def get_initial_strength_by_perspective(agent_id: str) -> dict:
     return {p: 1.0 for p in agent["perspectives"]}
 ```
 
-### 3.4 タイムスタンプ設計
+### 3.5 タイムスタンプ設計
 
 | カラム | 用途 |
 |-------|------|
@@ -409,6 +463,13 @@ class Phase1Config:
     # === エンベディング ===
     embedding_model: str = "text-embedding-3-small"
     embedding_dimension: int = 1536
+
+    # === スコープ（プロジェクト横断の知識管理） ===
+    current_project_id: str = "llm-persistent-memory-phase1"
+    related_domains: List[str] = field(
+        default_factory=lambda: ["vector-database", "postgresql", "llm-applications"]
+    )
+    default_scope_level: str = "project"  # 新規記憶のデフォルトスコープ
 
     def get_decay_rate(self, consolidation_level: int) -> float:
         """定着レベルに応じたタスク単位の減衰率を取得"""

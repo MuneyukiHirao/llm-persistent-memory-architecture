@@ -977,7 +977,13 @@ def prepare_task_instruction(orchestrator, task):
   },
   "tags": ["部品A", "サプライヤーY", "遅延", "火災"],
   "embedding": [...],
-  
+
+  "scope": {
+    "level": "domain",
+    "domain": "procurement",
+    "project": null
+  },
+
   "strength": 1.0,
   "strength_by_perspective": {
     "コスト": 2.1,
@@ -998,6 +1004,93 @@ def prepare_task_instruction(orchestrator, task):
 - `access_count`：実際に使用された回数
 - `candidate_count`：検索候補として参照されたが使用されなかった回数
 - この2つを分けることで、ノイズの強化を防ぐ
+
+#### スコープ（scope）による知識の階層管理
+
+エージェントをプロジェクトをまたいで「育てていく」ために、知識のスコープを明示的に管理する。
+
+**3つのスコープレベル**：
+
+| レベル | 説明 | 例 | 寿命 |
+|--------|------|-----|------|
+| `universal` | 技術やプロジェクトに依存しない普遍的な原則 | 「トランザクション整合性を常に確保」 | 永続 |
+| `domain` | 特定の技術領域に適用できる知識 | 「pgvectorのIVFflatは1万件超で有効」 | 技術が変わるまで |
+| `project` | 特定プロジェクトの決定・設定 | 「similarity_threshold=0.3」 | そのプロジェクトのみ |
+
+**スコープの構造**：
+
+```json
+// 汎用知識（どのプロジェクトでも有効）
+{
+  "content": "JOINが多いクエリでは、外部キーにインデックスを張る",
+  "scope": {
+    "level": "universal",
+    "domain": null,
+    "project": null
+  }
+}
+
+// ドメイン知識（特定技術領域）
+{
+  "content": "ベクトルインデックスは1万件未満では効果が薄い",
+  "scope": {
+    "level": "domain",
+    "domain": "vector-database",
+    "project": null
+  }
+}
+
+// プロジェクト固有
+{
+  "content": "Phase 1ではsimilarity_threshold=0.3が適切",
+  "scope": {
+    "level": "project",
+    "domain": null,
+    "project": "llm-persistent-memory-phase1"
+  }
+}
+```
+
+**スコープを考慮した検索**：
+
+```python
+def search_with_scope(query, agent_id, project_context):
+    """スコープを考慮した検索"""
+
+    current_project = project_context["project"]["id"]
+    related_domains = project_context["related_domains"]
+
+    # 検索対象のスコープを決定
+    scope_filter = {
+        "$or": [
+            # 汎用知識は常に検索
+            {"scope.level": "universal"},
+            # 関連ドメインの知識を検索
+            {"scope.level": "domain", "scope.domain": {"$in": related_domains}},
+            # 現在のプロジェクト固有の知識を検索
+            {"scope.level": "project", "scope.project": current_project}
+        ]
+    }
+
+    # 他プロジェクト固有の知識は除外される
+    candidates = vector_search(query, agent_id, scope_filter)
+    return candidates
+```
+
+**プロジェクト移行時の動作**：
+
+```
+【プロジェクトA完了時】
+  universal: 50件 → 次プロジェクトに継承
+  domain:X: 30件   → 関連ドメインなら継承
+  project:A: 100件 → アーカイブ（必要なら再活性化可能）
+
+【プロジェクトB開始時】
+  検索対象: universal + 関連domain + project:B（新規）
+  検索対象外: project:A（アーカイブ済み）
+```
+
+これにより、エージェントは複数のプロジェクトを経験しながら、汎用的な専門性を蓄積していく。プロジェクト固有の決定事項は、そのプロジェクトが終わればアーカイブされ、新しいプロジェクトでは参照されない。
 
 ### 3.5 検索アルゴリズム：2段階構造
 
@@ -1777,6 +1870,60 @@ def update_impact(memory, context):
 - 将来の代替手段
 該当しない観点は省略してください。
 ```
+
+#### 学び抽出時のスコープ判断
+
+エージェントを複数プロジェクトで育てていくため、学び抽出時にスコープ（universal / domain / project）を判断させる。
+
+**スコープ判断を含むプロンプト例**：
+
+```
+タスク実行結果から学びを抽出してください。
+
+【タスク内容】
+{task_description}
+
+【結果】
+{task_result}
+
+【学びの抽出とスコープ判断】
+以下の3つのレベルで学びを分類してください：
+
+1. 汎用的な学び（universal）
+   - 技術やプロジェクトに依存しない普遍的な原則
+   - 例：「複雑なクエリは段階的に構築すると理解しやすい」
+
+2. ドメイン固有の学び（domain）
+   - 特定の技術領域に適用できる知識
+   - 該当するドメインを明記（例：vector-database, postgresql, procurement）
+   - 例：「pgvectorでは cosine 距離より inner product が高速」
+
+3. プロジェクト固有の学び（project）
+   - このプロジェクトの特定の決定・設定に関する知識
+   - 例：「調達エージェントの観点は5つで十分だった」
+
+各レベルで該当する学びがなければ空でOKです。
+できるだけ汎用的なレベルに抽象化することを心がけてください。
+```
+
+**抽象化の促進**：
+
+```
+プロジェクト固有の経験:
+「Phase 1でsimilarity_threshold=0.3が良かった」
+
+  ↓ 抽象化を促す
+
+ドメイン知識への昇格:
+「ベクトル検索では緩めの閾値（0.2-0.4）から始めて調整するのが良い」
+
+  ↓ さらに抽象化
+
+汎用原則への昇格:
+「検索システムのパラメータは、保守的な値から始めて徐々に調整する」
+```
+
+この抽象化により、プロジェクト固有の経験が汎用的な専門性として蓄積されていく。
 
 ### 3.8 睡眠フェーズ（専門エージェント用）
 
