@@ -220,6 +220,20 @@ Use the following specialized agents appropriately:
 - Save routing successes/failures as memories
 - Accumulate experiences like "this task wasn't suitable for this agent"
 - Observe and memorize user preferences (prefers detailed vs. concise, etc.)
+
+【Task Request Template】
+- Include the following template in all task requests:
+
+  Task ID: {task_id}
+  Content: {specific task content}
+
+  【About Reporting】
+  - Report any progress, questions, errors, blocks, or permission requests
+  - When complete, record learnings to memory/{agent_id}_memory.json before reporting
+  - Include report_type in your report
+
+- Specialized agents record their own learnings to external memory
+- Orchestrator does not verify learning records (delegated to specialized agents)
 ```
 
 ### 3.4 Project Context Example
@@ -702,7 +716,526 @@ in Phase 2 and subsequent development.
 
 ---
 
-## 6. Design Principles Summary
+## 6. Agent Communication
+
+### 6.1 Task Granularity
+
+**Principle: 1 Task = 1 Small Action**
+
+Tasks that the orchestrator delegates to specialized agents should be split into "small units completable in a single execution."
+
+```
+Bad example:
+"Build the Docker Compose environment"
+→ Too large. Errors, permission issues, and uncertainties occur midway
+
+Good example:
+Step 1: "Create the docker-compose.yml template"
+Step 2: "Run docker compose config for syntax check"
+Step 3: "Run docker compose up -d and report the result"
+Step 4: "If there are errors, analyze the cause and suggest fixes"
+Step 5: "Create .env.example"
+```
+
+**Task Splitting Criteria**:
+
+| Criteria | Description |
+|----------|-------------|
+| Executability | Completable with one command execution or one file creation |
+| Verifiability | Success/failure can be clearly determined |
+| Independence | Next task can be decided based on previous task's result |
+| Recoverability | Failure requires only small rollback |
+
+**Task Request Format**:
+
+The orchestrator must include the following standard instructions in all task requests to specialized agents.
+
+```
+【Task Request Template】
+
+Task ID: {task_id}
+Content: {specific task content}
+
+【About Reporting】
+- Report any progress, questions, errors, blocks, or permission requests
+- When complete, record learnings to memory/{agent_id}_memory.json before reporting
+- Include report_type in your report (progress/completed/question/error/blocked/permission_needed)
+```
+
+**Request Example**:
+```
+Task ID: infra_002
+Content: Create docker-compose.yml. Use PostgreSQL + pgvector configuration with pgvector/pgvector:pg16 image.
+
+【About Reporting】
+- Report any progress, questions, errors, blocks, or permission requests
+- When complete, record learnings to memory/infrastructure_agent_memory.json before reporting
+- Include report_type in your report
+```
+
+### 6.2 Report Types from Specialized Agents
+
+Specialized agents send the following reports to the orchestrator during task execution.
+
+```json
+{
+  "report_type": "progress | completed | question | error | blocked | permission_needed",
+  "task_id": "task_001",
+  "content": "Report content",
+  "details": { ... },
+  "options": ["Option A", "Option B"],
+  "requires_user_input": false,
+  "can_continue": true
+}
+```
+
+**Report Type Definitions**:
+
+| Type | Description | Example |
+|------|-------------|---------|
+| `progress` | Progress report (continuing) | "Creating docker-compose.yml" |
+| `completed` | Task complete | "Created docker-compose.yml. Learnings recorded to memory" |
+| `question` | Question requiring decision | "Should PostgreSQL version be 15 or 16?" |
+| `error` | Error occurred (attempting self-resolution) | "Port 5432 in use. Trying different port" |
+| `blocked` | Cannot continue | "pgvector image not found" |
+| `permission_needed` | Permission required | "sudo permission required" |
+
+**Specialized agents record learnings themselves**:
+
+**Before** sending a `completed` report, specialized agents extract learnings from their own perspective and record them to their memory file. The report should state "Learnings recorded to memory."
+
+```
+Specialized agent behavior on task completion:
+1. Execute task
+2. Extract learnings (from own perspective)
+3. Record to memory/{agent_id}_memory.json
+4. Send completed report to orchestrator
+
+Learning extraction perspectives (e.g., Infrastructure Agent):
+├── Environment Reproducibility: "Will this config work in other environments?"
+├── Security: "Any security concerns?"
+├── Performance: "Any performance-affecting factors?"
+├── Operational Ease: "Any operational notes?"
+└── Extensibility: "Any factors affecting future expansion?"
+```
+
+### 6.3 Orchestrator Response Patterns
+
+```
+【Response to question】
+Specialized Agent: "Should PostgreSQL version be 15 or 16?"
+    ↓
+Orchestrator decision:
+├── Info in external memory → Answer and instruct to continue
+├── Can decide independently → Answer and instruct to continue
+└── Needs user decision → Escalate to user
+
+【Response to error】
+Specialized Agent: "Port 5432 in use. Trying 5433"
+    ↓
+Orchestrator:
+├── Approve → "Please continue"
+└── Reject → "Stop existing PostgreSQL and retry"
+
+【Response to blocked】
+Specialized Agent: "pgvector image not found"
+    ↓
+Orchestrator:
+├── Provide solution → "Use pgvector/pgvector:pg16"
+└── Cannot resolve → Escalate to user
+
+【Response to permission_needed】
+Specialized Agent: "sudo permission required"
+    ↓
+Orchestrator → Always escalate to user
+"Specialized agent requests sudo permission. Do you approve?"
+```
+
+### 6.4 Escalation to User
+
+The orchestrator must always confirm with the user in these cases.
+
+**Cases requiring escalation**:
+
+| Situation | Reason |
+|-----------|--------|
+| sudo / root permission request | Security risk |
+| Overwriting existing files | Data loss risk |
+| Connecting to external services | Cost / security |
+| Unexpectedly large changes | Scope deviation |
+| More than 3 retry failures | Possible fundamental issue |
+
+**Escalation Format**:
+
+```
+【Situation】
+Specialized agent "Infrastructure" encountered an error starting Docker.
+
+【Problem】
+Permission denied: /var/run/docker.sock
+
+【Proposed Solutions】
+A) Run sudo docker compose up (requires sudo permission)
+B) Add current user to docker group (requires logout)
+C) Reconfigure Docker in rootless mode
+
+【Confirmation】
+Which approach should we take?
+```
+
+### 6.5 Execution Flow Example
+
+```
+【Orchestrator】
+Task request:
+---
+Task ID: infra_002
+Content: Create docker-compose.yml. PostgreSQL + pgvector configuration.
+
+【About Reporting】
+- Report any progress, questions, errors, blocks, or permission requests
+- When complete, record learnings to memory/infrastructure_agent_memory.json before reporting
+- Include report_type in your report
+---
+
+【Infrastructure Agent】
+{
+  "report_type": "question",
+  "content": "Please confirm PostgreSQL version",
+  "options": ["15", "16"],
+  "requires_user_input": false
+}
+
+【Orchestrator】
+External memory search → No info → Check spec → phase1-implementation-spec.ja.md says "pg16"
+Answer: "Use PostgreSQL 16"
+
+【Infrastructure Agent】
+1. Create docker-compose.yml
+2. Record learnings to memory/infrastructure_agent_memory.json
+3. Report to orchestrator:
+{
+  "report_type": "completed",
+  "content": "Created docker-compose.yml. Learnings recorded to memory",
+  "details": {
+    "file_path": "docker/docker-compose.yml",
+    "services": ["postgres"]
+  }
+}
+
+【Orchestrator】
+1. Update progress_state.json (infra_002 completed)
+2. Next task request:
+---
+Task ID: infra_003
+Content: Run docker compose config for syntax check.
+
+【About Reporting】
+- Report any progress, questions, errors, blocks, or permission requests
+- When complete, record learnings to memory/infrastructure_agent_memory.json before reporting
+- Include report_type in your report
+---
+
+【Infrastructure Agent】
+{
+  "report_type": "error",
+  "content": "Syntax error detected",
+  "details": {
+    "error": "services.postgres.environment must be a mapping"
+  },
+  "can_continue": true
+}
+→ Attempts self-correction
+
+【Infrastructure Agent】
+1. Fix syntax error, syntax check passes
+2. Record learnings to memory/infrastructure_agent_memory.json
+3. Report to orchestrator:
+{
+  "report_type": "completed",
+  "content": "Fixed syntax error, syntax check passed. Learnings recorded to memory"
+}
+
+【Orchestrator】
+1. Update progress_state.json (infra_003 completed)
+2. Next task request:
+---
+Task ID: infra_004
+Content: Run docker compose up -d and report the result.
+
+【About Reporting】
+- Report any progress, questions, errors, blocks, or permission requests
+- When complete, record learnings to memory/infrastructure_agent_memory.json before reporting
+- Include report_type in your report
+---
+
+【Infrastructure Agent】
+{
+  "report_type": "permission_needed",
+  "content": "No access permission to docker.sock",
+  "options": [
+    "Run sudo docker compose up -d",
+    "Add user to docker group"
+  ],
+  "requires_user_input": true
+}
+
+【Orchestrator → User】
+"Docker startup requires permission. Which approach?
+A) Use sudo (can execute now)
+B) Add to docker group (requires logout)"
+
+【User】
+"A please"
+
+【Orchestrator → Infrastructure Agent】
+Additional instruction: User approved sudo usage. Execute sudo docker compose up -d.
+```
+
+### 6.6 Recording to External Memory
+
+**Specialized agents record learnings themselves.** To save orchestrator context, learning recording is delegated to specialized agents.
+
+#### 6.6.1 Recording Flow
+
+```
+【Specialized agent task completion】
+    ↓
+Specialized Agent:
+├── 1. Execute task
+├── 2. Extract learnings (from own perspective)
+├── 3. Record to own memory file
+│       → memory/{agent_id}_memory.json
+└── 4. Send completed report to orchestrator
+
+【Orchestrator】
+├── 1. Receive report
+├── 2. Update progress_state.json
+├── 3. Record own learnings if needed (routing success/failure, etc.)
+│       → memory/dev_orchestrator_memory.json
+└── 4. Request next task
+```
+
+#### 6.6.2 Example of Specialized Agent Self-Recording
+
+**Infrastructure Agent behavior on task completion**:
+
+```
+1. Create docker-compose.yml
+2. Extract learnings:
+   - Environment Reproducibility: Use pgvector/pgvector:pg16 official image
+   - Operational Ease: --env-file option required
+3. Record to memory/infrastructure_agent_memory.json
+4. Send completed report to orchestrator
+```
+
+**Example memory recorded by specialized agent**:
+```json
+{
+  "id": "mem_infra_001",
+  "content": "When creating docker-compose.yml: use pgvector/pgvector:pg16 image, reference root .env with --env-file",
+  "scope_level": "project",
+  "scope_project": "llm-persistent-memory-phase1",
+  "strength": 1.0,
+  "strength_by_perspective": {
+    "Environment Reproducibility": 1.2,
+    "Security": 1.0,
+    "Performance": 1.0,
+    "Operational Ease": 1.2,
+    "Extensibility": 1.0
+  },
+  "learnings": {
+    "Environment Reproducibility": "Use pgvector/pgvector:pg16 official image. Version pinning for stability",
+    "Operational Ease": "--env-file option needed to reference root .env"
+  },
+  "access_count": 0,
+  "candidate_count": 0,
+  "consolidation_level": 0,
+  "status": "active",
+  "source": "task_execution",
+  "created_at": "2026-01-13T14:10:00Z",
+  "updated_at": "2026-01-13T14:10:00Z",
+  "last_accessed_at": null
+}
+```
+
+#### 6.6.3 Example of Orchestrator Recording
+
+Orchestrator records only its own learnings (routing decisions, agent evaluation, etc.):
+
+```json
+{
+  "content": "Docker permission issue resolved with sudo (user approved)",
+  "scope_level": "project",
+  "learnings": {
+    "Agent Suitability": "Infrastructure Agent properly escalated permission issue",
+    "User Intent": "User accepts sudo usage"
+  }
+}
+```
+
+#### 6.6.4 Learning Abstraction Decisions
+
+**Specialized agents themselves** determine scope level when recording learnings:
+
+| Learning Content | scope_level | Reason |
+|-----------------|-------------|--------|
+| "pgvector is stable with pg16" | domain | Applicable to all PostgreSQL/pgvector |
+| "--env-file ../.env required" | project | Specific to this project's directory structure |
+| "Health checks are essential" | universal | Valid for any Docker project |
+
+```
+Specialized agent decision flow:
+├── "Can this learning be used in other projects?"
+│     → Yes: universal or domain
+│     → No: project
+├── "Is it limited to a specific technology area?"
+│     → Yes: domain (specify scope_domain)
+│     → No: universal
+└── Set appropriate scope_level when recording
+```
+
+---
+
+## 7. Progress State File
+
+### 7.1 Overview
+
+The orchestrator must record progress state to an external file when issuing task instructions or receiving results.
+
+**Purpose**:
+1. Information that won't be lost even if orchestrator sleeps mid-process
+2. Progress report that users can check anytime
+
+**File Path**: `memory/progress_state.json`
+
+### 7.2 File Structure
+
+```json
+{
+  "user_request": {
+    "id": "req_001",
+    "original": "Develop Phase 1 MVP",
+    "clarified": "Start with Docker Compose environment setup, set up PostgreSQL + pgvector"
+  },
+
+  "overall": {
+    "current_phase": "phase1_foundation",
+    "progress_percent": 10,
+    "status": "in_progress",
+    "last_updated": "2025-01-13T12:00:00Z"
+  },
+
+  "task_tree": {
+    "Docker Environment Setup": {
+      "status": "in_progress",
+      "agent": "infrastructure_agent",
+      "children": {
+        "infra_001": {
+          "description": "Check directory structure",
+          "status": "completed",
+          "output": []
+        },
+        "infra_002": {
+          "description": "Create docker-compose.yml",
+          "status": "in_progress",
+          "output": []
+        }
+      }
+    },
+    "Schema Creation": {
+      "status": "pending",
+      "agent": "schema_design_agent",
+      "children": {}
+    }
+  },
+
+  "current": {
+    "task_id": "infra_002",
+    "agent": "infrastructure_agent",
+    "description": "Create docker-compose.yml",
+    "started_at": "2025-01-13T12:05:00Z"
+  },
+
+  "history": [
+    {
+      "event": "task_completed",
+      "task_id": "infra_001",
+      "result": "No existing files, can create new",
+      "timestamp": "2025-01-13T12:03:00Z"
+    }
+  ]
+}
+```
+
+### 7.3 Field Descriptions
+
+| Field | Description | Use |
+|-------|-------------|-----|
+| `user_request` | Original user instruction and clarified content | Context understanding |
+| `overall` | Overall progress percentage, current phase | Quick status overview |
+| `task_tree` | Task dependencies and completion status | Detailed progress check |
+| `current` | Currently executing task details | What's happening now |
+| `history` | History of completed tasks, issues, decisions | Review past events |
+
+### 7.4 Update Timing
+
+```
+【On task instruction】
+├── Add new task to task_tree
+├── Update current
+└── Update overall.last_updated
+
+【On result receipt】
+├── Change task_tree status to completed
+├── Record file path to output
+├── Add completion event to history
+├── Update current to next task
+└── Recalculate overall.progress_percent
+
+【On problem occurrence】
+├── Add problem event to history
+└── Change current.status to blocked (if needed)
+
+【On user decision receipt】
+└── Add decision event to history
+```
+
+### 7.5 Task Status
+
+| Status | Description |
+|--------|-------------|
+| `pending` | Not started |
+| `in_progress` | Executing |
+| `completed` | Complete |
+| `blocked` | Blocked (problem occurred) |
+| `cancelled` | Cancelled |
+
+### 7.6 Progress Reporting to User
+
+The orchestrator checks `overall.last_updated` and reports progress at user-preferred intervals (e.g., 1 hour).
+
+**Report Format Example**:
+
+```
+【Progress Report】
+Phase: phase1_foundation
+Progress: 40%
+
+Completed tasks:
+- [x] infra_001: Check directory structure
+- [x] infra_002: Create docker-compose.yml
+
+In progress:
+- [ ] infra_003: Run docker compose config
+
+Next steps:
+- infra_004: Run docker compose up -d
+```
+
+---
+
+## 8. Design Principles Summary
 
 | Principle | Description |
 |-----------|-------------|
@@ -711,9 +1244,14 @@ in Phase 2 and subsequent development.
 | **Specify Scope Explicitly** | Always specify universal / domain / project |
 | **Promote Abstraction** | Ask "can this be generalized?" during learning extraction |
 | **Inject Project Context** | Pass current project constraints at startup |
+| **1 Task = 1 Small Action** | Split tasks into sizes completable in a single execution |
+| **Always Escalate Permission Requests** | Never use sudo etc. without user confirmation |
+| **Specialized Agents Record Own Learnings** | Save learnings to own memory file on task completion |
+| **Orchestrator Includes Standard Instructions** | Include "record learnings to memory on completion" in task requests |
 
 ---
 
 *This document was created based on [architecture.en.md](./architecture.en.md) and [phase1-implementation-spec.en.md](./phase1-implementation-spec.en.md).*
 
 *Created: January 13, 2025*
+*Updated: January 13, 2026 - Added learnings field to section 6.2, expanded section 6.6 (specialized agent learning recording flow)*

@@ -1,0 +1,368 @@
+{
+  "agent_id": "dev_orchestrator",
+  "memories": [
+    {
+      "id": "mem_orch_001",
+      "content": "ユーザーは1時間に1回の進捗報告を希望している",
+      "scope_level": "project",
+      "scope_domain": null,
+      "scope_project": "llm-persistent-memory-phase1",
+      "strength": 1.0,
+      "strength_by_perspective": {
+        "ユーザー意図": 1.2,
+        "エージェント適性": 1.0,
+        "タスク依存関係": 1.0,
+        "進捗評価": 1.3,
+        "リスク検知": 1.0
+      },
+      "learnings": {
+        "ユーザー意図": "進捗の可視化を重視。定期的な報告がないと不安を感じる可能性",
+        "進捗評価": "1時間ごとに進捗状態ファイルを更新し、ユーザーに報告する"
+      },
+      "access_count": 1,
+      "candidate_count": 1,
+      "consolidation_level": 0,
+      "status": "active",
+      "source": "user_dialogue",
+      "created_at": "2025-01-13T12:00:00Z",
+      "updated_at": "2026-01-13T16:20:00Z",
+      "last_accessed_at": "2026-01-13T16:20:00Z"
+    },
+    {
+      "id": "mem_orch_002",
+      "content": "Python環境はvenvを使用する（システムへの直接インストールは避ける）",
+      "scope_level": "project",
+      "scope_domain": null,
+      "scope_project": "llm-persistent-memory-phase1",
+      "strength": 1.2,
+      "strength_by_perspective": {
+        "ユーザー意図": 1.1,
+        "エージェント適性": 1.0,
+        "タスク依存関係": 1.5,
+        "進捗評価": 1.0,
+        "リスク検知": 1.0
+      },
+      "learnings": {
+        "ユーザー意図": "環境の分離を重視している",
+        "タスク依存関係": "core_004でvenv作成済み。pip installはvenv内で実行"
+      },
+      "access_count": 2,
+      "candidate_count": 2,
+      "consolidation_level": 0,
+      "status": "active",
+      "source": "user_dialogue",
+      "created_at": "2025-01-13T12:00:00Z",
+      "updated_at": "2026-01-13T16:20:00Z",
+      "last_accessed_at": "2026-01-13T16:20:00Z"
+    },
+    {
+      "id": "mem_orch_003",
+      "content": "EmbeddingはAzure OpenAIを使用（標準のOpenAI APIではない）",
+      "scope_level": "project",
+      "scope_domain": null,
+      "scope_project": "llm-persistent-memory-phase1",
+      "strength": 1.3,
+      "strength_by_perspective": {
+        "ユーザー意図": 1.0,
+        "エージェント適性": 1.4,
+        "タスク依存関係": 1.5,
+        "進捗評価": 1.0,
+        "リスク検知": 1.2
+      },
+      "learnings": {
+        "エージェント適性": "search_engine_agentがAzureEmbeddingClientを実装済み（search_001）",
+        "タスク依存関係": "環境変数: AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_API_KEY, AZURE_OPENAI_EMBEDDING_DEPLOYMENT",
+        "リスク検知": "api_version指定が必須。openai>=1.0.0のAzureOpenAIクラスで対応済み"
+      },
+      "access_count": 3,
+      "candidate_count": 3,
+      "consolidation_level": 0,
+      "status": "active",
+      "source": "user_dialogue",
+      "created_at": "2025-01-13T12:00:00Z",
+      "updated_at": "2026-01-13T16:20:00Z",
+      "last_accessed_at": "2026-01-13T16:20:00Z"
+    },
+    {
+      "id": "mem_orch_004",
+      "content": "開発環境はLinux (Ubuntu 24.04)、Docker 28.2.2、Docker Compose 2.37.1、Python 3.12.3",
+      "scope_level": "project",
+      "scope_domain": null,
+      "scope_project": "llm-persistent-memory-phase1",
+      "strength": 1.0,
+      "strength_by_perspective": {
+        "ユーザー意図": 1.0,
+        "エージェント適性": 1.1,
+        "タスク依存関係": 1.2,
+        "進捗評価": 1.0,
+        "リスク検知": 1.0
+      },
+      "learnings": {
+        "タスク依存関係": "Docker Composeはプラグイン形式（docker compose）で動作する",
+        "エージェント適性": "インフラ構築エージェントはこの環境を前提に構築できる"
+      },
+      "access_count": 0,
+      "candidate_count": 0,
+      "consolidation_level": 0,
+      "status": "active",
+      "source": "environment_check",
+      "created_at": "2025-01-13T12:00:00Z",
+      "updated_at": "2025-01-13T12:00:00Z",
+      "last_accessed_at": null
+    },
+    {
+      "id": "mem_orch_005",
+      "content": "Docker関連ファイルは docker/ フォルダに配置する（docker-compose.yml, Dockerfile等）",
+      "scope_level": "project",
+      "scope_domain": null,
+      "scope_project": "llm-persistent-memory-phase1",
+      "strength": 1.0,
+      "strength_by_perspective": {
+        "ユーザー意図": 1.3,
+        "エージェント適性": 1.1,
+        "タスク依存関係": 1.2,
+        "進捗評価": 1.0,
+        "リスク検知": 1.0
+      },
+      "learnings": {
+        "ユーザー意図": "開発用ファイルはプロジェクトルート直下ではなく、専用フォルダに整理することを好む",
+        "タスク依存関係": "インフラ構築エージェントへのファイルパス指示は docker/ を基準にする"
+      },
+      "access_count": 0,
+      "candidate_count": 0,
+      "consolidation_level": 0,
+      "status": "active",
+      "source": "user_dialogue",
+      "created_at": "2026-01-13T14:05:00Z",
+      "updated_at": "2026-01-13T14:05:00Z",
+      "last_accessed_at": null
+    },
+    {
+      "id": "mem_orch_006",
+      "content": "docker/ ディレクトリ内でdocker composeを実行する場合、--env-file ../.env の指定が必要",
+      "scope_level": "project",
+      "scope_domain": null,
+      "scope_project": "llm-persistent-memory-phase1",
+      "strength": 1.2,
+      "strength_by_perspective": {
+        "ユーザー意図": 1.0,
+        "エージェント適性": 1.2,
+        "タスク依存関係": 1.4,
+        "進捗評価": 1.0,
+        "リスク検知": 1.1
+      },
+      "learnings": {
+        "タスク依存関係": "docker compose コマンドには常に --env-file ../.env を付ける",
+        "リスク検知": "env-file を忘れると環境変数が解決されず起動失敗する"
+      },
+      "access_count": 1,
+      "candidate_count": 1,
+      "consolidation_level": 0,
+      "status": "active",
+      "source": "task_execution",
+      "created_at": "2026-01-13T14:15:00Z",
+      "updated_at": "2026-01-13T14:15:00Z",
+      "last_accessed_at": "2026-01-13T14:15:00Z"
+    },
+    {
+      "id": "mem_orch_007",
+      "content": "タスク依頼は「1タスク = 1小さなアクション」の原則を守ることで、専門エージェントの作業が明確になる",
+      "scope_level": "domain",
+      "scope_domain": "llm-agent-orchestration",
+      "scope_project": null,
+      "strength": 1.3,
+      "strength_by_perspective": {
+        "ユーザー意図": 1.0,
+        "エージェント適性": 1.4,
+        "タスク依存関係": 1.3,
+        "進捗評価": 1.2,
+        "リスク検知": 1.0
+      },
+      "learnings": {
+        "エージェント適性": "大きなタスクは細分化して依頼。例: core_001-007で7段階に分割",
+        "タスク依存関係": "依存関係がある場合は順序を明示。例: db/connection.py → models/memory.py → memory_repository.py",
+        "進捗評価": "各タスク完了時にprogress_state.jsonを更新することで進捗が可視化される"
+      },
+      "access_count": 7,
+      "candidate_count": 7,
+      "consolidation_level": 1,
+      "status": "active",
+      "source": "task_execution",
+      "created_at": "2026-01-13T15:00:00Z",
+      "updated_at": "2026-01-13T16:20:00Z",
+      "last_accessed_at": "2026-01-13T16:20:00Z"
+    },
+    {
+      "id": "mem_orch_008",
+      "content": "専門エージェントへのタスク依頼には、参照すべき仕様書セクション、依存モジュール、実装例を含めると効率的",
+      "scope_level": "domain",
+      "scope_domain": "llm-agent-orchestration",
+      "scope_project": null,
+      "strength": 1.4,
+      "strength_by_perspective": {
+        "ユーザー意図": 1.0,
+        "エージェント適性": 1.5,
+        "タスク依存関係": 1.4,
+        "進捗評価": 1.0,
+        "リスク検知": 1.1
+      },
+      "learnings": {
+        "エージェント適性": "タスクテンプレートに「参照」「依存モジュール」「実装要件」を含める",
+        "タスク依存関係": "既存実装済みモジュールを明示することで、エージェントがインポートできる",
+        "リスク検知": "曖昧な指示は質問(question)を招くので、具体的に記述"
+      },
+      "access_count": 10,
+      "candidate_count": 10,
+      "consolidation_level": 1,
+      "status": "active",
+      "source": "task_execution",
+      "created_at": "2026-01-13T15:00:00Z",
+      "updated_at": "2026-01-13T16:20:00Z",
+      "last_accessed_at": "2026-01-13T16:20:00Z"
+    },
+    {
+      "id": "mem_orch_009",
+      "content": "Phase 1 MVP進捗: 55%完了。検索エンジン実装完了(search_001-003)、次は睡眠フェーズ実装",
+      "scope_level": "project",
+      "scope_domain": null,
+      "scope_project": "llm-persistent-memory-phase1",
+      "strength": 1.5,
+      "strength_by_perspective": {
+        "ユーザー意図": 1.0,
+        "エージェント適性": 1.0,
+        "タスク依存関係": 1.2,
+        "進捗評価": 1.5,
+        "リスク検知": 1.0
+      },
+      "learnings": {
+        "進捗評価": "完了: Docker環境構築、スキーマ作成、コア機能実装（7タスク）、検索エンジン実装（3タスク）",
+        "タスク依存関係": "残り: 睡眠フェーズ実装、タスク実行フロー、検証・チューニング"
+      },
+      "access_count": 2,
+      "candidate_count": 2,
+      "consolidation_level": 0,
+      "status": "active",
+      "source": "progress_tracking",
+      "created_at": "2026-01-13T16:20:00Z",
+      "updated_at": "2026-01-13T16:35:00Z",
+      "last_accessed_at": "2026-01-13T16:35:00Z"
+    },
+    {
+      "id": "mem_orch_010",
+      "content": "実装済みsrcディレクトリ構成: config/, core/, db/, embedding/, models/, search/, utils/",
+      "scope_level": "project",
+      "scope_domain": null,
+      "scope_project": "llm-persistent-memory-phase1",
+      "strength": 1.3,
+      "strength_by_perspective": {
+        "ユーザー意図": 1.0,
+        "エージェント適性": 1.3,
+        "タスク依存関係": 1.4,
+        "進捗評価": 1.0,
+        "リスク検知": 1.0
+      },
+      "learnings": {
+        "エージェント適性": "新規タスク依頼時は既存ディレクトリ構造を前提にできる",
+        "タスク依存関係": "主要モジュール: Phase1Config, DatabaseConnection, AgentMemory, MemoryRepository, StrengthManager, AzureEmbeddingClient, VectorSearch"
+      },
+      "access_count": 1,
+      "candidate_count": 1,
+      "consolidation_level": 0,
+      "status": "active",
+      "source": "task_execution",
+      "created_at": "2026-01-13T16:20:00Z",
+      "updated_at": "2026-01-13T16:20:00Z",
+      "last_accessed_at": "2026-01-13T16:20:00Z"
+    },
+    {
+      "id": "mem_orch_011",
+      "content": "テストは各エージェントが基本動作確認、統合テストはverification_agentが担当",
+      "scope_level": "domain",
+      "scope_domain": "llm-agent-orchestration",
+      "scope_project": null,
+      "strength": 1.2,
+      "strength_by_perspective": {
+        "ユーザー意図": 1.0,
+        "エージェント適性": 1.3,
+        "タスク依存関係": 1.2,
+        "進捗評価": 1.0,
+        "リスク検知": 1.1
+      },
+      "learnings": {
+        "エージェント適性": "memory_core_agentのstrength_manager.pyはテスト未実施だが、verification_agentで後でカバー",
+        "リスク検知": "テストなしで進めると手戻りリスクあるが、MVP目的では許容可能"
+      },
+      "access_count": 1,
+      "candidate_count": 1,
+      "consolidation_level": 0,
+      "status": "active",
+      "source": "task_execution",
+      "created_at": "2026-01-13T16:00:00Z",
+      "updated_at": "2026-01-13T16:20:00Z",
+      "last_accessed_at": "2026-01-13T16:20:00Z"
+    }
+    ,
+    {
+      "id": "mem_orch_012",
+      "content": "Phase 1 検証結果: 132テスト全成功。ただし下位モジュールのユニットテスト5件が未実装（test_connection, test_memory, test_memory_repository, test_strength_manager, test_vector_search）",
+      "scope_level": "project",
+      "scope_domain": null,
+      "scope_project": "llm-persistent-memory-phase1",
+      "strength": 1.3,
+      "strength_by_perspective": {
+        "ユーザー意図": 1.0,
+        "エージェント適性": 1.2,
+        "タスク依存関係": 1.0,
+        "進捗評価": 1.5,
+        "リスク検知": 1.3
+      },
+      "learnings": {
+        "進捗評価": "上位モジュールのテストが網羅的で、実用上は問題なし。MVPとしては許容可能",
+        "リスク検知": "下位モジュールの単体テスト不足は、将来のリファクタリング時にリスクとなる可能性あり"
+      },
+      "access_count": 0,
+      "candidate_count": 0,
+      "consolidation_level": 0,
+      "status": "active",
+      "source": "verification_result",
+      "created_at": "2026-01-13T23:10:00Z",
+      "updated_at": "2026-01-13T23:10:00Z",
+      "last_accessed_at": null
+    }
+    ,
+    {
+      "id": "mem_orch_013",
+      "content": "Phase 1 MVP完了: 全341テスト成功。Docker環境構築→スキーマ作成→コア機能→検索エンジン→睡眠フェーズ→タスク実行フロー→検証チューニングの7フェーズ完了",
+      "scope_level": "project",
+      "scope_domain": null,
+      "scope_project": "llm-persistent-memory-phase1",
+      "strength": 1.5,
+      "strength_by_perspective": {
+        "ユーザー意図": 1.5,
+        "エージェント適性": 1.3,
+        "タスク依存関係": 1.2,
+        "進捗評価": 1.5,
+        "リスク検知": 1.0
+      },
+      "learnings": {
+        "ユーザー意図": "MVPとして必要な全機能を実装完了。テストカバレッジも十分",
+        "進捗評価": "テスト追加: test_connection(36), test_memory(47), test_memory_repository(36), test_strength_manager(52), test_vector_search(38) = 209件追加"
+      },
+      "access_count": 0,
+      "candidate_count": 0,
+      "consolidation_level": 0,
+      "status": "active",
+      "source": "milestone_completion",
+      "created_at": "2026-01-14T00:00:00Z",
+      "updated_at": "2026-01-14T00:00:00Z",
+      "last_accessed_at": null
+    }
+  ],
+  "metadata": {
+    "last_sleep_at": "2025-01-13T12:00:00Z",
+    "total_memories": 13,
+    "active_memories": 13,
+    "archived_memories": 0,
+    "last_updated": "2026-01-14T00:00:00Z"
+  }
+}

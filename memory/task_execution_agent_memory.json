@@ -1,0 +1,340 @@
+{
+  "agent_id": "task_execution_agent",
+  "memories": [
+    {
+      "id": "mem_task_001",
+      "content": "TaskExecutorの設計では、既存モジュールの責務分離を維持しつつ統合する「コンポジションパターン」が有効。VectorSearch(Stage1), MemoryRanker(Stage2), StrengthManager(強化), SleepPhaseProcessor(睡眠)をTaskExecutor内でコンポジションし、各モジュールの独立性を保ったまま一貫したフローを実現。",
+      "scope_level": "project",
+      "scope_domain": null,
+      "scope_project": "llm-persistent-memory-phase1",
+      "strength": 1.0,
+      "strength_by_perspective": {
+        "API設計": 1.3,
+        "フロー整合性": 1.4,
+        "エラー処理": 1.1,
+        "拡張性": 1.4,
+        "テスト容易性": 1.3
+      },
+      "learnings": {
+        "API設計": "TaskExecutorは内部で各コンポーネントを保持し、外部には統合されたメソッド(search_memories, identify_used_memories等)を公開。呼び出し側は複数モジュールの連携を意識せずに済む。",
+        "フロー整合性": "検索→候補強化→使用判定→使用強化の順序がメソッド設計に反映。search_memories()で候補強化、reinforce_used_memories()で使用強化と、2段階強化の各ステージが明確に分離。",
+        "エラー処理": "各コンポーネントが独自の例外クラス(VectorSearchError等)を持つため、TaskExecutorでは例外の種類に応じた処理が可能。部分的失敗時の継続処理も実装しやすい。",
+        "拡張性": "依存性注入でコンポーネントを受け取るため、テスト時のモック差し替えや将来の実装変更が容易。MemoryRankerをニューラルスコアラーに置換する際もTaskExecutorの変更は最小限。",
+        "テスト容易性": "各コンポーネントを個別にテスト済み。TaskExecutorのテストはモックを使った統合テストに集中でき、テストの重複を避けられる。"
+      },
+      "access_count": 0,
+      "candidate_count": 0,
+      "consolidation_level": 0,
+      "status": "active",
+      "source": "task_execution",
+      "created_at": "2026-01-13T16:00:00+09:00",
+      "updated_at": "2026-01-13T16:00:00+09:00",
+      "last_accessed_at": null
+    },
+    {
+      "id": "mem_task_002",
+      "content": "2段階強化の実装では、candidate_count++とaccess_count++/strength強化を明確に分離することが重要。search_memories()ではStrengthManager.mark_as_candidate()のみ呼び出し、reinforce_used_memories()でmark_as_used()を呼び出す設計により、「検索されたが使われなかった」メモリの過剰強化を防止。",
+      "scope_level": "domain",
+      "scope_domain": "memory-management",
+      "scope_project": "llm-persistent-memory-phase1",
+      "strength": 1.0,
+      "strength_by_perspective": {
+        "API設計": 1.2,
+        "フロー整合性": 1.5,
+        "エラー処理": 1.0,
+        "拡張性": 1.3,
+        "テスト容易性": 1.4
+      },
+      "learnings": {
+        "API設計": "mark_as_candidate()とmark_as_used()を別メソッドとして公開することで、呼び出し側が強化タイミングを制御可能。execute_task()のような統合メソッドでは内部で適切に呼び分け。",
+        "フロー整合性": "仕様書の2段階強化メカニズムを忠実に実装。Stage1(候補時)=candidate_count++のみ、Stage2(採用時)=access_count++ & strength強化。この分離がノイズ強化防止の核心。",
+        "エラー処理": "StrengthManagerのメソッドは例外を伝播するため、TaskExecutorで適切にハンドリング。部分的な強化失敗時もログ記録して継続可能な設計。",
+        "拡張性": "strengthの増分量はPhase1Configで管理(strength_increment_on_use=0.1, perspective_strength_increment=0.15)。パラメータ調整が設定ファイル変更のみで可能。",
+        "テスト容易性": "StrengthManagerの単体テストで2段階強化ロジックを検証済み。TaskExecutorのテストでは呼び出し順序とタイミングの検証に集中できる。"
+      },
+      "access_count": 0,
+      "candidate_count": 0,
+      "consolidation_level": 0,
+      "status": "active",
+      "source": "task_execution",
+      "created_at": "2026-01-13T16:00:00+09:00",
+      "updated_at": "2026-01-13T16:00:00+09:00",
+      "last_accessed_at": null
+    },
+    {
+      "id": "mem_task_003",
+      "content": "Phase 1の使用判定はキーワードマッチング(keyword方式)で開始。identify_used_memories()でタスク結果にメモリcontentのキーワードが含まれるかを判定。Phase1Configのuse_detection_method設定で将来のsimilarity方式やllm方式への移行を想定した設計。",
+      "scope_level": "project",
+      "scope_domain": null,
+      "scope_project": "llm-persistent-memory-phase1",
+      "strength": 1.0,
+      "strength_by_perspective": {
+        "API設計": 1.2,
+        "フロー整合性": 1.3,
+        "エラー処理": 1.2,
+        "拡張性": 1.5,
+        "テスト容易性": 1.3
+      },
+      "learnings": {
+        "API設計": "identify_used_memories(task_result, candidates)のシンプルなAPIで使用判定を抽象化。内部実装(keyword/similarity/llm)を隠蔽し、呼び出し側は方式を意識不要。",
+        "フロー整合性": "使用判定はタスク実行後、強化処理前に行う。execute_task()内で適切な順序で呼び出し、判定→強化のフローを保証。",
+        "エラー処理": "キーワード抽出やマッチング失敗時は空リストを返す防御的実装。例外をスローせず、強化対象がないだけの正常終了として扱う。",
+        "拡張性": "config.use_detection_methodによる方式切替をif分岐で実装。Strategy パターンへのリファクタリングで更なる拡張性向上も可能だが、Phase 1では YAGNI を適用しシンプルに。",
+        "テスト容易性": "_extract_keywords()と_matches_any_keyword()を内部メソッドとして分離。キーワード抽出ロジックの単体テストが可能。"
+      },
+      "access_count": 0,
+      "candidate_count": 0,
+      "consolidation_level": 0,
+      "status": "active",
+      "source": "task_execution",
+      "created_at": "2026-01-13T16:00:00+09:00",
+      "updated_at": "2026-01-13T16:00:00+09:00",
+      "last_accessed_at": null
+    },
+    {
+      "id": "mem_task_004",
+      "content": "MemoryFacadeは外部システム向けのシンプルAPI層。TaskExecutorをラップし、search/record/reinforce/sleepの4メソッドで主要操作を提供。戻り値をdict形式に変換することで、JSON APIとしても利用可能な設計。",
+      "scope_level": "project",
+      "scope_domain": null,
+      "scope_project": "llm-persistent-memory-phase1",
+      "strength": 1.0,
+      "strength_by_perspective": {
+        "API設計": 1.5,
+        "フロー整合性": 1.2,
+        "エラー処理": 1.3,
+        "拡張性": 1.2,
+        "テスト容易性": 1.2
+      },
+      "learnings": {
+        "API設計": "Facadeパターンで複雑な内部構造を隠蔽。外部からはMemoryFacadeの4メソッドのみを知れば十分。引数も最小限(query, agent_id等)に抑え、学習コストを低減。",
+        "フロー整合性": "MemoryFacadeは単純なラッパーとして機能し、フローロジックはTaskExecutorに委譲。責務の明確な分離により、Facade層の変更がTaskExecutorに影響しない。",
+        "エラー処理": "TaskExecutorからの例外をキャッチし、エラーレスポンス形式に変換することで、REST API化が容易。現Phase 1では例外をそのまま伝播させてもよい。",
+        "拡張性": "create()ファクトリメソッドでデフォルト依存性を解決。カスタム設定での初期化も可能で、テスト用モックの注入にも対応。",
+        "テスト容易性": "TaskExecutorをモックに差し替えることでMemoryFacadeの単体テストが可能。ラッパー層なのでテストは薄くてよい。"
+      },
+      "access_count": 0,
+      "candidate_count": 0,
+      "consolidation_level": 0,
+      "status": "active",
+      "source": "task_execution",
+      "created_at": "2026-01-13T16:00:00+09:00",
+      "updated_at": "2026-01-13T16:00:00+09:00",
+      "last_accessed_at": null
+    },
+    {
+      "id": "mem_task_005",
+      "content": "スケルトン実装では、NotImplementedErrorメッセージに「TODO: 〇〇」形式で実装ヒントを残すことが有効。また、dataclassのfield(default_factory=list)でミュータブルデフォルト値を安全に扱い、docstringに「処理フロー」セクションを設けることで実装手順が明確化。TaskExecutionResult.to_dict()メソッドでJSON API対応も考慮。",
+      "scope_level": "domain",
+      "scope_domain": "api-design",
+      "scope_project": "llm-persistent-memory-phase1",
+      "strength": 1.0,
+      "strength_by_perspective": {
+        "API設計": 1.4,
+        "フロー整合性": 1.3,
+        "エラー処理": 1.2,
+        "拡張性": 1.3,
+        "テスト容易性": 1.4
+      },
+      "learnings": {
+        "API設計": "TaskExecutionResultのto_dict()メソッドで、内部表現(ScoredMemory, UUID)を外部向けフォーマット(dict, str)に変換。REST API化を見据えた設計で、呼び出し側はシリアライズを意識不要。",
+        "フロー整合性": "execute_task()のdocstringに処理フロー(1.検索→2.タスク実行→3.使用判定→4.強化→5.学び記録→6.結果返却)を明記。実装時に順序を間違えるリスクを低減。",
+        "エラー処理": "TaskExecutionResult.errorsフィールドでエラーを集約。各ステップの部分的失敗をリストで保持し、全体としては処理継続可能な設計をスケルトン段階で表現。",
+        "拡張性": "NotImplementedErrorのメッセージに具体的なTODO(例: 'TODO: Implement vector search -> ranking -> candidate reinforcement flow')を記載。実装者が次にやるべきことを即座に把握可能。",
+        "テスト容易性": "_extract_keywords()と_matches_any_keyword()をプライベートメソッドとして分離定義。テスト時に内部ロジックを個別検証できる構造をスケルトン段階で確立。"
+      },
+      "access_count": 0,
+      "candidate_count": 0,
+      "consolidation_level": 0,
+      "status": "active",
+      "source": "task_execution",
+      "created_at": "2026-01-13T17:30:00+09:00",
+      "updated_at": "2026-01-13T17:30:00+09:00",
+      "last_accessed_at": null
+    },
+    {
+      "id": "mem_task_006",
+      "content": "search_memoriesメソッドの実装では、VectorSearch→MemoryRanker→StrengthManagerの3コンポーネントを順次呼び出す。ランキング結果（TOP_K制限後）のメモリIDのみをmark_as_candidate()に渡すことで、不必要な候補強化を防止。処理フローの順序保証と部分的失敗への対応が重要。",
+      "scope_level": "project",
+      "scope_domain": null,
+      "scope_project": "llm-persistent-memory-phase1",
+      "strength": 1.0,
+      "strength_by_perspective": {
+        "API設計": 1.3,
+        "フロー整合性": 1.5,
+        "エラー処理": 1.3,
+        "拡張性": 1.2,
+        "テスト容易性": 1.4
+      },
+      "learnings": {
+        "API設計": "search_memories(query, agent_id, perspective=None)のシンプルなシグネチャで検索機能を提供。perspectiveはオプション引数とし、VectorSearchとMemoryRankerの両方に透過的に渡す設計。",
+        "フロー整合性": "Stage1(ベクトル検索)→Stage2(スコア合成)→候補強化の順序を厳守。ランキング後のTOP_K結果のみを強化対象とし、フィルタ前の全候補を強化しない設計が重要。テストでcall_orderによる順序検証を実装。",
+        "エラー処理": "空クエリは早期リターン、VectorSearch結果が空の場合は後続処理をスキップ。VectorSearchErrorは伝播させ、呼び出し側でハンドリング可能に。部分的失敗（強化失敗等）は現状では例外伝播だが、将来的にはログ記録+継続を検討。",
+        "拡張性": "各コンポーネントの戻り値型に依存（Tuple[AgentMemory, float]→ScoredMemory→memory_ids）。型定義が明確なため、コンポーネント差し替え時も互換性を維持しやすい。",
+        "テスト容易性": "MagicMockでVectorSearch/MemoryRanker/StrengthManagerをモック化し、15ケースの単体テストを作成。特にフロー整合性テスト（test_flow_order_vector_search_then_rank_then_reinforce）でcall_orderによる呼び出し順序検証が有効。"
+      },
+      "access_count": 0,
+      "candidate_count": 0,
+      "consolidation_level": 0,
+      "status": "active",
+      "source": "task_execution",
+      "created_at": "2026-01-13T18:00:00+09:00",
+      "updated_at": "2026-01-13T18:00:00+09:00",
+      "last_accessed_at": null
+    },
+    {
+      "id": "mem_task_007",
+      "content": "identify_used_memoriesのkeyword方式実装では、_extract_keywords()と_matches_any_keyword()の2つの内部メソッドに処理を分離。キーワード抽出はメモリcontentから、マッチング判定はタスク結果に対して行う設計。Phase 1では英語のストップワード除外と3文字未満の単語フィルタリングを実装、日本語形態素解析はPhase 2以降の課題として明確に分離。",
+      "scope_level": "project",
+      "scope_domain": null,
+      "scope_project": "llm-persistent-memory-phase1",
+      "strength": 1.0,
+      "strength_by_perspective": {
+        "API設計": 1.4,
+        "フロー整合性": 1.3,
+        "エラー処理": 1.4,
+        "拡張性": 1.5,
+        "テスト容易性": 1.5
+      },
+      "learnings": {
+        "API設計": "identify_used_memories(task_result, candidates)は内部で_extract_keywords()と_matches_any_keyword()を呼び出す階層設計。各メソッドの責務が明確で、呼び出し側は使用判定の内部実装を意識不要。戻り値はUUIDリストでシンプル。",
+        "フロー整合性": "メモリのcontentからキーワードを抽出→タスク結果と照合の順序で判定。タスク結果からキーワードを抽出するのではなく、メモリのキーワードをタスク結果で検索する設計により、メモリの知識が「使われた」ことを検出。",
+        "エラー処理": "空のtask_result/candidates、文字列変換失敗、キーワード抽出失敗のすべてで空リストを返す防御的実装。logger.warningで問題を記録しつつ、例外をスローせず正常終了として扱う。",
+        "拡張性": "ストップワードをクラス変数_STOPWORDSとしてfrozensetで定義。日本語ストップワードの追加やTF-IDF導入が容易な構造。config.use_detection_methodによるsimilarity/llm方式への切り替えも将来対応可能。",
+        "テスト容易性": "3つのメソッド（_extract_keywords, _matches_any_keyword, identify_used_memories）を個別にテスト可能。25件のテストケースで基本動作・エッジケース・統合動作を網羅。日本語テストは英語ベースに変更し、Phase 1の範囲を明確化。"
+      },
+      "access_count": 0,
+      "candidate_count": 0,
+      "consolidation_level": 0,
+      "status": "active",
+      "source": "task_execution",
+      "created_at": "2026-01-13T19:00:00+09:00",
+      "updated_at": "2026-01-13T19:00:00+09:00",
+      "last_accessed_at": null
+    },
+    {
+      "id": "mem_task_008",
+      "content": "reinforce_used_memoriesの実装では、各メモリに対して個別にStrengthManager.mark_as_used()を呼び出し、部分的な失敗時も処理を継続する「fail-soft」設計を採用。戻り値を成功数(int)にすることで、呼び出し側が部分的失敗を検知可能。空リストの早期リターンと失敗IDのログ記録でデバッグ容易性も確保。",
+      "scope_level": "project",
+      "scope_domain": null,
+      "scope_project": "llm-persistent-memory-phase1",
+      "strength": 1.0,
+      "strength_by_perspective": {
+        "API設計": 1.4,
+        "フロー整合性": 1.4,
+        "エラー処理": 1.5,
+        "拡張性": 1.3,
+        "テスト容易性": 1.4
+      },
+      "learnings": {
+        "API設計": "reinforce_used_memories(memory_ids, agent_id, perspective)のシグネチャは既存パターン（search_memories等）と一貫性を持たせた設計。戻り値をintにすることで、部分的失敗時も呼び出し側が結果を定量的に把握可能。perspectiveはオプション引数で透過的にmark_as_usedへ渡す。",
+        "フロー整合性": "2段階強化のStage 2として、search_memories（Stage 1: 候補強化）とは明確に分離。各メモリに対して個別にmark_as_usedを呼び出すことで順序保証と個別エラーハンドリングが両立。処理順序はmemory_idsの入力順を維持。",
+        "エラー処理": "fail-soft設計: 個別のメモリ強化失敗（メモリ不存在またはDB例外）時も他のメモリの処理を継続。失敗したmemory_idをリストで収集しログに記録。try-exceptで例外を捕捉しつつ、logger.warningで失敗原因を記録してデバッグを容易に。",
+        "拡張性": "StrengthManager.mark_as_usedに処理を委譲することで、強化ロジックの変更（増分量の調整、観点別強化の拡張等）がTaskExecutorに影響しない。perspectiveパラメータを透過的に渡す設計で、将来の観点別強化の拡張が容易。",
+        "テスト容易性": "9件のテストケースで基本動作（単一/複数メモリ）、エッジケース（空リスト）、部分的失敗（メモリ不存在/例外）、perspective受け渡し、順序保証を網羅。MagicMockのside_effectで様々な失敗パターンをシミュレート。"
+      },
+      "access_count": 0,
+      "candidate_count": 0,
+      "consolidation_level": 0,
+      "status": "active",
+      "source": "task_execution",
+      "created_at": "2026-01-13T20:00:00+09:00",
+      "updated_at": "2026-01-13T20:00:00+09:00",
+      "last_accessed_at": null
+    },
+    {
+      "id": "mem_task_009",
+      "content": "record_learningメソッドの実装では、学びの内容(content)と観点別学び(learning)を分離したシグネチャ設計が有効。perspective指定時は{perspective: learning}、未指定時は{\"general\": learning}のlearnings構造を動的生成。VectorSearchが保持するembedding_clientを再利用することで、新たなクライアント初期化不要。戻り値はAgentMemoryではなくUUIDとし、呼び出し側の負担を軽減。",
+      "scope_level": "project",
+      "scope_domain": null,
+      "scope_project": "llm-persistent-memory-phase1",
+      "strength": 1.0,
+      "strength_by_perspective": {
+        "API設計": 1.5,
+        "フロー整合性": 1.4,
+        "エラー処理": 1.3,
+        "拡張性": 1.4,
+        "テスト容易性": 1.4
+      },
+      "learnings": {
+        "API設計": "record_learning(agent_id, content, learning, perspective)のシグネチャでは、learningをDict[str,str]ではなくstrとし、perspectiveと組み合わせてlearnings構造を内部で構築。呼び出し側はDict構造を意識不要。戻り値をUUIDにすることで、後続処理（強化等）で必要な情報のみを返却。",
+        "フロー整合性": "空チェック→Embedding生成→learnings構造作成→strength_by_perspective初期化→AgentMemory生成→DB保存→UUID返却の順序を明確化。docstringの処理フローセクションで手順を明記し、実装と仕様の乖離を防止。",
+        "エラー処理": "空contentはValueErrorで早期に失敗させ、AzureEmbeddingErrorはそのまま伝播。DB保存失敗も伝播させることで、呼び出し側でのトランザクション管理を可能に。例外を握り潰さない設計で問題の早期発見を促進。",
+        "拡張性": "VectorSearch.embedding_clientの再利用により、TaskExecutorに新たなembedding_client引数を追加不要。source=\"task\"の設定により、将来のソース別フィルタリング（education/manual等との区別）が可能。",
+        "テスト容易性": "mock_vector_search.embedding_clientでEmbeddingClientをモック化。16件のテストでlearnings構造（perspective有無）、strength_by_perspective初期化、エラー伝播、各フィールド設定を網羅。統合テストで完全なメモリオブジェクトの検証も実施。"
+      },
+      "access_count": 0,
+      "candidate_count": 0,
+      "consolidation_level": 0,
+      "status": "active",
+      "source": "task_execution",
+      "created_at": "2026-01-13T21:00:00+09:00",
+      "updated_at": "2026-01-13T21:00:00+09:00",
+      "last_accessed_at": null
+    },
+    {
+      "id": "mem_task_010",
+      "content": "execute_taskメソッドの統合フロー実装では、6ステップ（検索→タスク実行→使用判定→強化→学び記録→結果返却）を順序通りに実行しつつ、「fail-soft」設計で部分的失敗時も処理を継続。重大エラー（検索失敗、task_func例外）は伝播させ、非重大エラー（強化失敗、学び記録失敗）はresult.errorsに集約して処理継続。reinforce_used_memoriesの戻り値（成功数）と期待数を比較することで、内部で例外がキャッチされた部分的失敗も検出可能。",
+      "scope_level": "project",
+      "scope_domain": null,
+      "scope_project": "llm-persistent-memory-phase1",
+      "strength": 1.0,
+      "strength_by_perspective": {
+        "API設計": 1.4,
+        "フロー整合性": 1.5,
+        "エラー処理": 1.5,
+        "拡張性": 1.4,
+        "テスト容易性": 1.4
+      },
+      "learnings": {
+        "API設計": "execute_task(query, agent_id, task_func, perspective, extract_learning, learning_content, learning_text)のシグネチャで、必須パラメータを最小限に抑えつつ、学び記録のオプションを柔軟に提供。task_funcはCallable[[List[ScoredMemory]], Any]型で、検索結果を受け取ってタスク結果を返すコールバック。TaskExecutionResultで全結果を構造化。",
+        "フロー整合性": "docstringに記載した処理フロー（1.検索→2.タスク実行→3.使用判定→4.強化→5.学び記録→6.結果返却）を厳密に実装。各ステップをコメントブロックで明示（# ========== Step N: ... ==========）し、順序の間違いを防止。テストでcall_orderによる順序検証を実施。",
+        "エラー処理": "重大エラー（検索失敗、task_func例外）はそのまま伝播させ、呼び出し側でハンドリング。非重大エラー（使用判定、強化、学び記録）はtry-exceptでキャッチしてresult.errorsに追加し処理継続。reinforce_used_memoriesは内部で例外をキャッチするため、戻り値（成功数）とused_memory_idsの長さを比較して部分的失敗を検出。",
+        "拡張性": "_extract_learning_content()メソッドで学びの自動抽出ロジックを分離。Phase 1ではtask_resultの文字列化のみだが、Phase 2以降でLLMによる高度な抽出に置換可能。extract_learningパラメータでオプトイン方式を採用し、デフォルトは学び記録なし。",
+        "テスト容易性": "20件のテストケースで基本フロー、TaskExecutionResultの各フィールド、使用メモリの判定・強化、学び記録（extract_learning=True/learning_content指定）、エラーハンドリング（検索/task_func/強化/学び記録の各失敗）、部分的失敗時の継続動作を網羅。MagicMockのside_effectでエラーシナリオをシミュレート。"
+      },
+      "access_count": 0,
+      "candidate_count": 0,
+      "consolidation_level": 0,
+      "status": "active",
+      "source": "task_execution",
+      "created_at": "2026-01-13T22:30:00+09:00",
+      "updated_at": "2026-01-13T22:30:00+09:00",
+      "last_accessed_at": null
+    },
+    {
+      "id": "mem_task_011",
+      "content": "run_sleep_phaseメソッドはSleepPhaseProcessorへの純粋な委譲ラッパーとして実装。agent_idを受け取りSleepPhaseResultを返すシンプルなシグネチャで、睡眠フェーズの複雑な内部処理（減衰・アーカイブ・統合）を完全に隠蔽。SleepPhaseProcessor.process_all()は内部で各処理に独立したtry-exceptを持つため、TaskExecutor側での追加エラーハンドリングは不要。ログ出力で処理開始/完了を記録し、デバッグ容易性も確保。",
+      "scope_level": "project",
+      "scope_domain": null,
+      "scope_project": "llm-persistent-memory-phase1",
+      "strength": 1.0,
+      "strength_by_perspective": {
+        "API設計": 1.4,
+        "フロー整合性": 1.3,
+        "エラー処理": 1.4,
+        "拡張性": 1.4,
+        "テスト容易性": 1.4
+      },
+      "learnings": {
+        "API設計": "run_sleep_phase(agent_id)のシンプルなシグネチャでsleepメソッドを提供。戻り値のSleepPhaseResultには処理結果（decayed_count, archived_count, consolidated_count）とエラー情報が含まれ、呼び出し側は内部処理を意識せず結果を確認可能。",
+        "フロー整合性": "タスク完了後に呼び出されることを想定した設計。execute_taskとは独立したメソッドとして実装し、睡眠フェーズの実行タイミングを呼び出し側が制御可能に。処理ロジックはSleepPhaseProcessorに集約され、TaskExecutorはトリガーポイントとして機能。",
+        "エラー処理": "SleepPhaseProcessor.process_all()は内部で減衰・アーカイブ・統合の各処理に独立したtry-exceptを持つ障害耐性設計。そのためTaskExecutor側では追加のエラーハンドリング不要で、結果のresult.errorsを確認することで失敗を検知可能。",
+        "拡張性": "委譲パターンにより、SleepPhaseProcessorの内部実装（減衰率の計算、アーカイブ閾値、統合ロジック）を変更してもTaskExecutorは影響を受けない。将来的な睡眠フェーズの機能追加（並列処理、イベント通知等）もSleepPhaseProcessor側の変更のみで対応可能。",
+        "テスト容易性": "SleepPhaseProcessorをMagicMockでモック化することで、TaskExecutor.run_sleep_phaseの単体テストが6件で完結。process_all()への委譲、agent_idの受け渡し、SleepPhaseResultの返却、エラー時の動作を網羅。統合テストはSleepPhaseProcessorのテストに委譲。"
+      },
+      "access_count": 0,
+      "candidate_count": 0,
+      "consolidation_level": 0,
+      "status": "active",
+      "source": "task_execution",
+      "created_at": "2026-01-13T22:45:00+09:00",
+      "updated_at": "2026-01-13T22:45:00+09:00",
+      "last_accessed_at": null
+    }
+  ],
+  "metadata": {
+    "last_updated": "2026-01-13T22:45:00+09:00",
+    "total_memories": 11,
+    "active_memories": 11
+  }
+}

@@ -221,6 +221,20 @@ LEARNING_EXTRACTION_PROMPT = """
 - ルーティングの成功/失敗を記憶として保存
 - 「このタスクはこのエージェントに向いていなかった」という経験を蓄積
 - ユーザーの好み（詳細を好む/簡潔を好む等）を観察して記憶
+
+【タスク依頼時の定型指示】
+- すべてのタスク依頼に以下のテンプレートを使用する:
+
+  タスクID: {task_id}
+  内容: {具体的なタスク内容}
+
+  【報告について】
+  - 進捗・質問・エラー・ブロック・権限要求があれば報告してください
+  - 完了時は学びを memory/{agent_id}_memory.json に記録してから報告してください
+  - 報告には report_type を明記してください
+
+- 専門エージェントが自分で外部メモリに学びを記録する
+- オーケストレーターは学びの記録を確認しない（専門エージェントに任せる）
 ```
 
 ### 3.4 プロジェクトコンテキスト例
@@ -702,7 +716,526 @@ Phase 2 以降の開発にも活かされます。
 
 ---
 
-## 6. 設計原則まとめ
+## 6. エージェント間コミュニケーション
+
+### 6.1 タスクの粒度
+
+**原則：1タスク = 1小さなアクション**
+
+オーケストレーターが専門エージェントに依頼するタスクは、「1回の実行で完了できる小さな単位」に分割する。
+
+```
+悪い例:
+「Docker Compose環境を構築してください」
+→ 大きすぎる。途中でエラー、権限問題、不明点が発生する
+
+良い例:
+Step 1: 「docker-compose.yml のひな型を作成してください」
+Step 2: 「docker compose config で構文チェックしてください」
+Step 3: 「docker compose up -d を実行して結果を報告してください」
+Step 4: 「エラーがあれば原因を分析して修正案を提示してください」
+Step 5: 「.env.example を作成してください」
+```
+
+**タスク分割の基準**：
+
+| 基準 | 説明 |
+|------|------|
+| 実行可能性 | 1回のコマンド実行または1ファイル作成で完了 |
+| 検証可能性 | 成功/失敗が明確に判定できる |
+| 独立性 | 前のタスクの結果を受けて次のタスクを決定できる |
+| 回復可能性 | 失敗しても小さなロールバックで済む |
+
+**タスク依頼のフォーマット**：
+
+オーケストレーターは専門エージェントへのタスク依頼に、必ず以下の定型指示を含める。
+
+```
+【タスク依頼テンプレート】
+
+タスクID: {task_id}
+内容: {タスクの具体的な内容}
+
+【報告について】
+- 進捗・質問・エラー・ブロック・権限要求があれば報告してください
+- 完了時は学びを memory/{agent_id}_memory.json に記録してから報告してください
+- 報告には report_type を明記してください（progress/completed/question/error/blocked/permission_needed）
+```
+
+**依頼例**：
+```
+タスクID: infra_002
+内容: docker-compose.yml を作成してください。PostgreSQL + pgvector構成で、pgvector/pgvector:pg16 イメージを使用。
+
+【報告について】
+- 進捗・質問・エラー・ブロック・権限要求があれば報告してください
+- 完了時は学びを memory/infrastructure_agent_memory.json に記録してから報告してください
+- 報告には report_type を明記してください
+```
+
+### 6.2 専門エージェントからの報告タイプ
+
+専門エージェントは、タスク実行中にオーケストレーターへ以下の報告を行う。
+
+```json
+{
+  "report_type": "progress | completed | question | error | blocked | permission_needed",
+  "task_id": "task_001",
+  "content": "報告内容",
+  "details": { ... },
+  "options": ["選択肢A", "選択肢B"],
+  "requires_user_input": false,
+  "can_continue": true
+}
+```
+
+**報告タイプの定義**：
+
+| タイプ | 説明 | 例 |
+|--------|------|-----|
+| `progress` | 進捗報告（継続中） | 「docker-compose.yml を作成中」 |
+| `completed` | タスク完了 | 「docker-compose.yml を作成しました。学びをメモリに記録済み」 |
+| `question` | 判断が必要な質問 | 「PostgreSQLのバージョンは15と16どちらにしますか？」 |
+| `error` | エラー発生（自己解決を試みる） | 「ポート5432が使用中。別ポートを試します」 |
+| `blocked` | 続行不可能 | 「pgvectorイメージが見つかりません」 |
+| `permission_needed` | 権限が必要 | 「sudo権限が必要です」 |
+
+**学びの記録は専門エージェント自身が行う**：
+
+`completed` 報告の**前に**、専門エージェントは自身の観点から学びを抽出し、自分のメモリファイルに記録する。報告には「学びをメモリに記録済み」と明記する。
+
+```
+タスク完了時の動作（専門エージェント）：
+1. タスク実行
+2. 学びを抽出（自身の観点から）
+3. memory/{agent_id}_memory.json に記録
+4. オーケストレーターに completed 報告
+
+学び抽出の観点（例：インフラ構築エージェント）：
+├── 環境再現性: 「この設定は他の環境でも動くか？」
+├── セキュリティ: 「セキュリティ上の注意点は？」
+├── パフォーマンス: 「パフォーマンスに影響する要素は？」
+├── 運用容易性: 「運用上の注意点は？」
+└── 拡張性: 「将来の拡張に影響する要素は？」
+```
+
+### 6.3 オーケストレーターの応答パターン
+
+```
+【question への応答】
+専門エージェント: 「PostgreSQLのバージョンは15と16どちらにしますか？」
+    ↓
+オーケストレーター判断:
+├── 外部メモリに情報あり → 回答して続行指示
+├── 自分で判断可能 → 回答して続行指示
+└── ユーザー判断必要 → ユーザーにエスカレーション
+
+【error への応答】
+専門エージェント: 「ポート5432が使用中。5433を試します」
+    ↓
+オーケストレーター:
+├── 許可 → 「続行してください」
+└── 却下 → 「既存のPostgreSQLを停止してから再試行してください」
+
+【blocked への応答】
+専門エージェント: 「pgvectorイメージが見つかりません」
+    ↓
+オーケストレーター:
+├── 解決策を提示 → 「pgvector/pgvector:pg16 を使ってください」
+└── 解決不可能 → ユーザーにエスカレーション
+
+【permission_needed への応答】
+専門エージェント: 「sudo権限が必要です」
+    ↓
+オーケストレーター → ユーザーに必ずエスカレーション
+「専門エージェントがsudo権限を要求しています。許可しますか？」
+```
+
+### 6.4 ユーザーへのエスカレーション
+
+オーケストレーターは以下の場合、必ずユーザーに確認する。
+
+**必ずエスカレーションする場合**：
+
+| 状況 | 理由 |
+|------|------|
+| sudo / root権限の要求 | セキュリティリスク |
+| 既存ファイルの上書き | データ損失リスク |
+| 外部サービスへの接続 | コスト・セキュリティ |
+| 想定外の大きな変更 | スコープ逸脱 |
+| 3回以上の再試行失敗 | 根本的な問題の可能性 |
+
+**エスカレーションのフォーマット**：
+
+```
+【状況】
+専門エージェント「インフラ構築」がDockerの起動でエラーに遭遇しました。
+
+【問題】
+Permission denied: /var/run/docker.sock
+
+【提案された解決策】
+A) sudo docker compose up を実行（sudo権限が必要）
+B) 現在のユーザーをdockerグループに追加（ログアウト必要）
+C) rootlessモードでDockerを再設定
+
+【確認事項】
+どの方法で対応しますか？
+```
+
+### 6.5 実行フローの例
+
+```
+【オーケストレーター】
+タスク依頼:
+---
+タスクID: infra_002
+内容: docker-compose.yml を作成してください。PostgreSQL + pgvector構成。
+
+【報告について】
+- 進捗・質問・エラー・ブロック・権限要求があれば報告してください
+- 完了時は学びを memory/infrastructure_agent_memory.json に記録してから報告してください
+- 報告には report_type を明記してください
+---
+
+【インフラ構築エージェント】
+{
+  "report_type": "question",
+  "content": "PostgreSQLのバージョンを確認させてください",
+  "options": ["15", "16"],
+  "requires_user_input": false
+}
+
+【オーケストレーター】
+外部メモリ検索 → 情報なし → 仕様書確認 → phase1-implementation-spec.ja.md に "pg16" 記載あり
+回答: 「PostgreSQL 16を使用してください」
+
+【インフラ構築エージェント】
+1. docker-compose.yml を作成
+2. 学びを memory/infrastructure_agent_memory.json に記録
+3. オーケストレーターに報告:
+{
+  "report_type": "completed",
+  "content": "docker-compose.yml を作成しました。学びをメモリに記録済み",
+  "details": {
+    "file_path": "docker/docker-compose.yml",
+    "services": ["postgres"]
+  }
+}
+
+【オーケストレーター】
+1. progress_state.json を更新（infra_002 completed）
+2. 次のタスク依頼:
+---
+タスクID: infra_003
+内容: docker compose config で構文チェックしてください。
+
+【報告について】
+- 進捗・質問・エラー・ブロック・権限要求があれば報告してください
+- 完了時は学びを memory/infrastructure_agent_memory.json に記録してから報告してください
+- 報告には report_type を明記してください
+---
+
+【インフラ構築エージェント】
+{
+  "report_type": "error",
+  "content": "構文エラーを検出しました",
+  "details": {
+    "error": "services.postgres.environment must be a mapping"
+  },
+  "can_continue": true
+}
+→ 自己修正を試みる
+
+【インフラ構築エージェント】
+1. 構文エラーを修正し、構文チェック通過
+2. 学びを memory/infrastructure_agent_memory.json に記録
+3. オーケストレーターに報告:
+{
+  "report_type": "completed",
+  "content": "構文エラーを修正し、構文チェックが通りました。学びをメモリに記録済み"
+}
+
+【オーケストレーター】
+1. progress_state.json を更新（infra_003 completed）
+2. 次のタスク依頼:
+---
+タスクID: infra_004
+内容: docker compose up -d を実行して結果を報告してください。
+
+【報告について】
+- 進捗・質問・エラー・ブロック・権限要求があれば報告してください
+- 完了時は学びを memory/infrastructure_agent_memory.json に記録してから報告してください
+- 報告には report_type を明記してください
+---
+
+【インフラ構築エージェント】
+{
+  "report_type": "permission_needed",
+  "content": "docker.sockへのアクセス権限がありません",
+  "options": [
+    "sudo docker compose up -d を実行",
+    "ユーザーをdockerグループに追加"
+  ],
+  "requires_user_input": true
+}
+
+【オーケストレーター → ユーザー】
+「Docker起動に権限が必要です。どちらで対応しますか？
+A) sudo を使用（この場で実行可能）
+B) dockerグループに追加（ログアウト必要）」
+
+【ユーザー】
+「Aでお願いします」
+
+【オーケストレーター → インフラ構築エージェント】
+追加指示: ユーザーがsudo使用を許可しました。sudo docker compose up -d を実行してください。
+```
+
+### 6.6 外部メモリへの記録
+
+**専門エージェントは自分で学びを記録する。** オーケストレーターのコンテキスト節約のため、学びの記録は専門エージェントに任せる。
+
+#### 6.6.1 記録フロー
+
+```
+【専門エージェントのタスク完了時】
+    ↓
+専門エージェント:
+├── 1. タスク実行
+├── 2. 学びを抽出（自身の観点から）
+├── 3. 自分のメモリファイルに記録
+│       → memory/{agent_id}_memory.json
+└── 4. オーケストレーターにcompleted報告
+
+【オーケストレーター】
+├── 1. 報告を受信
+├── 2. progress_state.json を更新
+├── 3. 必要に応じて自身の学び（ルーティング成否等）を記録
+│       → memory/dev_orchestrator_memory.json
+└── 4. 次のタスクを依頼
+```
+
+#### 6.6.2 専門エージェントが自分で記録する例
+
+**インフラ構築エージェントのタスク完了時の動作**：
+
+```
+1. docker-compose.yml を作成
+2. 学びを抽出:
+   - 環境再現性: pgvector/pgvector:pg16 公式イメージを使用
+   - 運用容易性: --env-file オプションが必要
+3. memory/infrastructure_agent_memory.json に記録
+4. オーケストレーターに completed 報告を送信
+```
+
+**専門エージェントが記録するメモリの例**：
+```json
+{
+  "id": "mem_infra_001",
+  "content": "docker-compose.yml作成時: pgvector/pgvector:pg16イメージを使用、--env-fileでルート.envを参照",
+  "scope_level": "project",
+  "scope_project": "llm-persistent-memory-phase1",
+  "strength": 1.0,
+  "strength_by_perspective": {
+    "環境再現性": 1.2,
+    "セキュリティ": 1.0,
+    "パフォーマンス": 1.0,
+    "運用容易性": 1.2,
+    "拡張性": 1.0
+  },
+  "learnings": {
+    "環境再現性": "pgvector/pgvector:pg16 公式イメージを使用。バージョン固定で安定",
+    "運用容易性": "--env-file オプションでルートの.envを参照する構成が必要"
+  },
+  "access_count": 0,
+  "candidate_count": 0,
+  "consolidation_level": 0,
+  "status": "active",
+  "source": "task_execution",
+  "created_at": "2026-01-13T14:10:00Z",
+  "updated_at": "2026-01-13T14:10:00Z",
+  "last_accessed_at": null
+}
+```
+
+#### 6.6.3 オーケストレーターが記録する例
+
+オーケストレーター自身の学び（ルーティング判断、エージェント評価など）のみを記録：
+
+```json
+{
+  "content": "Docker権限問題はsudoで対応（ユーザー許可済み）",
+  "scope_level": "project",
+  "learnings": {
+    "エージェント適性": "インフラ構築エージェントは権限問題を適切にエスカレーションした",
+    "ユーザー意図": "ユーザーはsudo使用を許容する"
+  }
+}
+```
+
+#### 6.6.4 学びの抽象化判断
+
+**専門エージェント自身が**記録時に、学びのスコープレベルを判断する：
+
+| 学びの内容 | scope_level | 理由 |
+|-----------|-------------|------|
+| 「pgvectorはpg16で安定」 | domain | PostgreSQL/pgvector全般に適用可能 |
+| 「--env-file ../.envが必要」 | project | このプロジェクトのディレクトリ構造固有 |
+| 「ヘルスチェックは必須」 | universal | どのDockerプロジェクトでも有効 |
+
+```
+専門エージェントの判断フロー:
+├── 「この学びは他のプロジェクトでも使えるか？」
+│     → Yes: universal または domain
+│     → No: project
+├── 「特定の技術領域に限定されるか？」
+│     → Yes: domain (scope_domain を指定)
+│     → No: universal
+└── 記録時に適切なscope_levelを設定
+```
+
+---
+
+## 7. 進捗状態ファイル
+
+### 7.1 概要
+
+オーケストレーターは、タスクの指示または結果受領時に必ず進捗状態を外部ファイルに記録する。
+
+**目的**：
+1. オーケストレーターが中間睡眠しても失われない情報
+2. ユーザーがいつでも確認できる進捗レポート
+
+**ファイルパス**: `memory/progress_state.json`
+
+### 7.2 ファイル構造
+
+```json
+{
+  "user_request": {
+    "id": "req_001",
+    "original": "Phase 1 MVPを開発してください",
+    "clarified": "Docker Compose環境構築から開始し、PostgreSQL + pgvectorをセットアップ"
+  },
+
+  "overall": {
+    "current_phase": "phase1_foundation",
+    "progress_percent": 10,
+    "status": "in_progress",
+    "last_updated": "2025-01-13T12:00:00Z"
+  },
+
+  "task_tree": {
+    "Docker環境構築": {
+      "status": "in_progress",
+      "agent": "infrastructure_agent",
+      "children": {
+        "infra_001": {
+          "description": "ディレクトリ構造確認",
+          "status": "completed",
+          "output": []
+        },
+        "infra_002": {
+          "description": "docker-compose.yml作成",
+          "status": "in_progress",
+          "output": []
+        }
+      }
+    },
+    "スキーマ作成": {
+      "status": "pending",
+      "agent": "schema_design_agent",
+      "children": {}
+    }
+  },
+
+  "current": {
+    "task_id": "infra_002",
+    "agent": "infrastructure_agent",
+    "description": "docker-compose.yml作成",
+    "started_at": "2025-01-13T12:05:00Z"
+  },
+
+  "history": [
+    {
+      "event": "task_completed",
+      "task_id": "infra_001",
+      "result": "既存ファイルなし、新規作成可能",
+      "timestamp": "2025-01-13T12:03:00Z"
+    }
+  ]
+}
+```
+
+### 7.3 各フィールドの説明
+
+| フィールド | 説明 | 用途 |
+|-----------|------|------|
+| `user_request` | 元のユーザー指示と明確化後の内容 | 文脈の把握 |
+| `overall` | 全体進捗率、現在フェーズ | 一目で状況把握 |
+| `task_tree` | タスク依存関係と完了状況 | 詳細な進捗確認 |
+| `current` | 現在実行中のタスク詳細 | 今何をやっているか |
+| `history` | 完了タスク・問題・決定事項の履歴 | 過去の経緯確認 |
+
+### 7.4 更新タイミング
+
+```
+【タスク指示時】
+├── task_tree に新しいタスクを追加
+├── current を更新
+└── overall.last_updated を更新
+
+【結果受領時】
+├── task_tree のステータスを completed に
+├── output にファイルパスを記録
+├── history に完了イベントを追加
+├── current を次のタスクに更新
+└── overall.progress_percent を再計算
+
+【問題発生時】
+├── history に問題イベントを追加
+└── current.status を blocked に（必要に応じて）
+
+【ユーザー判断受領時】
+└── history に decision イベントを追加
+```
+
+### 7.5 タスクステータス
+
+| ステータス | 説明 |
+|-----------|------|
+| `pending` | 未着手 |
+| `in_progress` | 実行中 |
+| `completed` | 完了 |
+| `blocked` | ブロック中（問題発生） |
+| `cancelled` | キャンセル |
+
+### 7.6 ユーザーへの進捗報告
+
+オーケストレーターは `overall.last_updated` を確認し、ユーザーが希望する間隔（例: 1時間）で進捗報告を行う。
+
+**報告フォーマット例**：
+
+```
+【進捗報告】
+フェーズ: phase1_foundation
+進捗率: 40%
+
+完了タスク:
+- [x] infra_001: ディレクトリ構造確認
+- [x] infra_002: docker-compose.yml作成
+
+実行中:
+- [ ] infra_003: docker compose config 実行
+
+次のステップ:
+- infra_004: docker compose up -d 実行
+```
+
+---
+
+## 8. 設計原則まとめ
 
 | 原則 | 説明 |
 |------|------|
@@ -711,9 +1244,14 @@ Phase 2 以降の開発にも活かされます。
 | **スコープを明示** | universal / domain / project を必ず指定 |
 | **抽象化を促す** | 学び抽出時に「これは汎用化できるか？」を問う |
 | **プロジェクトコンテキストは注入** | 現プロジェクトの制約は起動時に渡す |
+| **1タスク = 1小さなアクション** | タスクは1回の実行で完了できるサイズに分割 |
+| **権限要求は必ずエスカレーション** | sudo等の権限はユーザー確認なしに使用しない |
+| **専門エージェントが自分で学びを記録** | タスク完了時に自分のメモリファイルに学びを保存 |
+| **オーケストレーターは定型指示を含める** | 「完了時は学びをメモリに記録してください」を依頼に含める |
 
 ---
 
 *本ドキュメントは [architecture.ja.md](./architecture.ja.md) および [phase1-implementation-spec.ja.md](./phase1-implementation-spec.ja.md) に基づいて作成された。*
 
 *作成日: 2025年1月13日*
+*更新日: 2026年1月13日 - セクション6.2にlearningsフィールド追加、セクション6.6を拡充（専門エージェントの学び記録フロー）*

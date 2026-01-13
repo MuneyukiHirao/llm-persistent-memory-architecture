@@ -1,0 +1,10 @@
+{
+  "agent_id": "schema_design_agent",
+  "memories": [],
+  "metadata": {
+    "last_sleep_at": null,
+    "total_memories": 0,
+    "active_memories": 0,
+    "archived_memories": 0
+  }
+}

@@ -1,0 +1,203 @@
+{
+  "agent_id": "core_agent",
+  "learnings": [
+    {
+      "task_id": "core_001",
+      "timestamp": "2026-01-13T08:00:00Z",
+      "category": "architecture",
+      "content": "Phase 1のsrc/ディレクトリ構成を設計。仕様書セクション5のPhase1Config、セクション3.4のAGENTS定義を基に、config/、core/、embedding/、db/、models/の5モジュール構成を提案。Azure OpenAI Embeddingへの変更に対応するためembedding/azure_client.pyを設計。",
+      "related_files": [
+        "docs/phase1-implementation-spec.ja.md"
+      ],
+      "tags": ["directory-structure", "phase1", "azure-openai"]
+    },
+    {
+      "id": "mem_core_002",
+      "task_id": "core_002",
+      "content": "ディレクトリ構造作成時は、スケルトンファイルに仕様書の参照セクションをコメントで記載することで、実装時の参照が容易になる。また、schema.sqlは記録用として保持し、DBへの適用状態を明示することが重要。",
+      "scope_level": "project",
+      "scope_project": "llm-persistent-memory-phase1",
+      "strength": 1.0,
+      "strength_by_perspective": {
+        "強度の正確性": 0.5,
+        "観点別強度": 0.5,
+        "原子性": 0.5,
+        "効率性": 1.0,
+        "テスト容易性": 1.0
+      },
+      "learnings": {
+        "強度の正確性": "このタスクは強度管理に直接関係しないが、構造設計の基盤を作った",
+        "観点別強度": "このタスクは観点別強度に直接関係しないが、strength_by_perspectiveを格納するモデル層の準備ができた",
+        "原子性": "ファイル作成は並列実行可能だが、ディレクトリ作成は先行する必要がある（依存関係あり）",
+        "効率性": "mkdir -p で再帰的ディレクトリ作成、並列Write呼び出しでスケルトン作成を効率化",
+        "テスト容易性": "各モジュールを独立したディレクトリに分離することで、モジュール単位のテストが容易になる"
+      },
+      "access_count": 0,
+      "candidate_count": 0,
+      "consolidation_level": 0,
+      "status": "active",
+      "source": "task_execution",
+      "created_at": "2026-01-13T09:00:00Z",
+      "updated_at": "2026-01-13T09:00:00Z",
+      "last_accessed_at": null
+    },
+    {
+      "id": "mem_core_003",
+      "task_id": "core_003",
+      "content": "Phase1Config dataclassの実装では、default_factoryを使用してList/Dictのデフォルト値を安全に初期化することが重要。Pythonのmutable defaultの罠を回避しつつ、dataclassによりカスタム設定の注入を容易にする設計を実現した。",
+      "scope_level": "domain",
+      "scope_domain": "python-dataclasses",
+      "scope_project": "llm-persistent-memory-phase1",
+      "strength": 1.0,
+      "strength_by_perspective": {
+        "強度の正確性": 1.0,
+        "観点別強度": 0.8,
+        "原子性": 0.5,
+        "効率性": 1.0,
+        "テスト容易性": 1.0
+      },
+      "learnings": {
+        "強度の正確性": "設定ファイルで2段階強化のパラメータを明示的に分離して定義。strength_increment_on_use (0.1) と perspective_strength_increment (0.15) を別々に管理することで、強化処理の正確性を担保",
+        "観点別強度": "strength_by_perspectiveの初期化は設定ファイルではなくagents.py側で行う設計。設定は観点別強度の増分量のみを提供することで責務を分離",
+        "原子性": "dataclassは不変性を保証しないが、設定値をまとめて一つのインスタンスで管理することで整合性を高める。frozen=Trueを使えば不変にできるが、今回は柔軟性を優先",
+        "効率性": "field(default_factory=lambda: [...]) を使用してList/Dictのデフォルト値を安全に初期化。クラスレベルのmutable共有を防ぐ",
+        "テスト容易性": "dataclassによりPhase1Config(similarity_threshold=0.4)のようにカスタム設定を注入可能。テスト時のパラメータ変更が容易"
+      },
+      "access_count": 0,
+      "candidate_count": 0,
+      "consolidation_level": 0,
+      "status": "active",
+      "source": "task_execution",
+      "created_at": "2026-01-13T09:30:00Z",
+      "updated_at": "2026-01-13T09:30:00Z",
+      "last_accessed_at": null
+    },
+    {
+      "id": "mem_core_004",
+      "task_id": "core_004",
+      "content": "PostgreSQL接続管理では、ThreadedConnectionPoolによる遅延初期化とコンテキストマネージャーによるトランザクション制御が重要。database_urlを外部から注入可能にすることで、テスト時のモック化が容易になる。",
+      "scope_level": "domain",
+      "scope_domain": "postgresql",
+      "scope_project": "llm-persistent-memory-phase1",
+      "strength": 1.0,
+      "strength_by_perspective": {
+        "強度の正確性": 0.5,
+        "観点別強度": 0.3,
+        "原子性": 1.0,
+        "効率性": 1.0,
+        "テスト容易性": 1.0
+      },
+      "learnings": {
+        "強度の正確性": "DB接続管理は強度管理に直接関係しないが、正確なトランザクション制御がデータ整合性の基盤となる。strength更新時のcommit/rollbackが確実に行われることが前提",
+        "観点別強度": "DB接続層は観点別強度に直接関係しない。上位層（memory_repository）で観点別の処理を行う",
+        "原子性": "コンテキストマネージャーでcommit/rollbackを確実に制御。例外発生時のrollbackが自動で行われる設計により、複数フィールド更新時のトランザクション整合性を保証",
+        "効率性": "ThreadedConnectionPoolによる遅延初期化で接続のオーバーヘッドを削減。min/max_connectionsをパラメータ化し、負荷に応じた調整を可能に",
+        "テスト容易性": "database_urlをコンストラクタで注入可能にすることで、テスト用DBへの切り替えが容易。シングルトンパターンも提供しつつ、個別インスタンス作成も可能な柔軟な設計"
+      },
+      "access_count": 0,
+      "candidate_count": 0,
+      "consolidation_level": 0,
+      "status": "active",
+      "source": "task_execution",
+      "created_at": "2026-01-13T10:00:00Z",
+      "updated_at": "2026-01-13T10:00:00Z",
+      "last_accessed_at": null
+    },
+    {
+      "id": "mem_core_005",
+      "task_id": "core_005",
+      "content": "AgentMemory dataclassの実装では、2段階強化（candidate_count/access_count）の概念をフィールドとドキュメントで明示的に表現することが重要。copy_with()メソッドでイミュータブルな更新パターンをサポートし、from_row()でtuple/dict両形式に対応することでリポジトリ層との結合を柔軟にした。",
+      "scope_level": "domain",
+      "scope_domain": "python-dataclasses",
+      "scope_project": "llm-persistent-memory-phase1",
+      "strength": 1.0,
+      "strength_by_perspective": {
+        "強度の正確性": 1.0,
+        "観点別強度": 1.0,
+        "原子性": 0.8,
+        "効率性": 0.8,
+        "テスト容易性": 1.0
+      },
+      "learnings": {
+        "強度の正確性": "candidate_count と access_count を明確に分離したフィールドとして定義。docstringで各フィールドの役割（検索候補 vs 実使用）を明記し、2段階強化の設計意図をコードに埋め込んだ",
+        "観点別強度": "strength_by_perspective を Dict[str, float] として定義し、観点名をキーとして柔軟に対応。create()ファクトリメソッドで初期値を注入可能にし、エージェント定義との連携を容易にした",
+        "原子性": "copy_with()メソッドでイミュータブルな更新パターンを提供。複数フィールドを同時に更新する際も元インスタンスを変更せず、新インスタンスを返すことで予期しない副作用を防止",
+        "効率性": "from_row()でtuple形式（標準cursor）とdict形式（RealDictCursor）両方に対応。psycopg2のJSONB自動変換を活用し、明示的なjson.loads()を省略",
+        "テスト容易性": "create()とcreate_from_education()ファクトリメソッドでテストデータ生成を容易に。デフォルト値が明示的で、テスト時に必要なフィールドのみ指定可能"
+      },
+      "access_count": 0,
+      "candidate_count": 0,
+      "consolidation_level": 0,
+      "status": "active",
+      "source": "task_execution",
+      "created_at": "2026-01-13T10:30:00Z",
+      "updated_at": "2026-01-13T10:30:00Z",
+      "last_accessed_at": null
+    },
+    {
+      "id": "mem_core_006",
+      "task_id": "core_006",
+      "content": "MemoryRepositoryの実装では、2段階強化（candidate_count/access_count）をSQL UPDATE文レベルで分離し、観点別強度はjsonb_setによる部分更新で該当観点のみを更新する設計が重要。PostgreSQLでUUID配列を使用するANY句では::uuid[]の明示的キャストが必要。",
+      "scope_level": "domain",
+      "scope_domain": "postgresql",
+      "scope_project": "llm-persistent-memory-phase1",
+      "strength": 1.0,
+      "strength_by_perspective": {
+        "強度の正確性": 1.0,
+        "観点別強度": 1.0,
+        "原子性": 1.0,
+        "効率性": 1.0,
+        "テスト容易性": 1.0
+      },
+      "learnings": {
+        "強度の正確性": "increment_candidate_countはcandidate_count+=1のみでstrengthは変更しない。increment_access_countでaccess_count+=1とstrength+=incrementを同時に実行。SQLレベルで2段階強化の分離を保証し、アプリケーションコードのミスを防止",
+        "観点別強度": "jsonb_setとCOALESCEを組み合わせて該当観点のみを部分更新。(strength_by_perspective->>perspective)::floatで既存値を取得し、存在しない場合は0.0で初期化してincrementを加算。全観点を毎回更新しない効率的な設計",
+        "原子性": "単一のUPDATE文で複数フィールド（strength, access_count, last_accessed_at, updated_at）を同時更新。DatabaseConnectionのコンテキストマネージャーによりトランザクション整合性を保証。RETURNING句で更新後の値を即座に取得",
+        "効率性": "ANY(%s::uuid[])句でN+1問題を回避するバッチ操作を提供。batch_increment_candidate_count, batch_update_strength, batch_archiveにより検索・減衰処理の効率化を実現。VALUES句とUPDATE FROMで複数行の異なる値を一括更新",
+        "テスト容易性": "リポジトリパターンでDB操作を抽象化。DatabaseConnectionを注入可能にすることでテスト用DBへの切り替えが容易。SQL定数をクラス変数として定義し、可読性とメンテナンス性を向上"
+      },
+      "access_count": 0,
+      "candidate_count": 0,
+      "consolidation_level": 0,
+      "status": "active",
+      "source": "task_execution",
+      "created_at": "2026-01-13T11:00:00Z",
+      "updated_at": "2026-01-13T11:00:00Z",
+      "last_accessed_at": null
+    },
+    {
+      "id": "mem_core_007",
+      "task_id": "core_007",
+      "content": "StrengthManagerの実装では、ビジネスロジック層としてリポジトリ層のメソッドを組み合わせて2段階強化を実現。mark_as_candidate と mark_as_used を明確に分離し、インパクト反映は IMPACT_SCORES 定数と getattr による動的な設定値取得で拡張性を確保した。",
+      "scope_level": "project",
+      "scope_project": "llm-persistent-memory-phase1",
+      "strength": 1.0,
+      "strength_by_perspective": {
+        "強度の正確性": 1.0,
+        "観点別強度": 1.0,
+        "原子性": 0.8,
+        "効率性": 1.0,
+        "テスト容易性": 1.0
+      },
+      "learnings": {
+        "強度の正確性": "mark_as_candidate は batch_increment_candidate_count のみを呼び出し strength を変更しない。mark_as_used は increment_access_count で strength も同時に更新。ビジネスロジック層でも2段階強化の分離を維持",
+        "観点別強度": "mark_as_used の perspective パラメータが指定された場合のみ update_perspective_strength を呼び出す設計。該当観点のみを強化し、全観点を毎回更新しない普遍的原則を遵守",
+        "原子性": "apply_impact では get_by_id → copy_with → update の流れで更新。リポジトリの update は単一 UPDATE 文で原子的だが、mark_as_used では複数のリポジトリ呼び出しが発生。各呼び出しは原子的だが、全体としては複数トランザクションになる点に注意",
+        "効率性": "IMPACT_SCORES 定数で impact_type と設定属性名のマッピングを定義し、getattr で動的に値を取得。新しいインパクトタイプを追加する際は定数と Phase1Config に追加するだけで拡張可能",
+        "テスト容易性": "MemoryRepository と Phase1Config を依存性注入で受け取る設計。モックリポジトリを注入することでDBなしでのユニットテストが可能。get_impact_value ユーティリティメソッドも公開し、テスト時の値検証が容易"
+      },
+      "access_count": 0,
+      "candidate_count": 0,
+      "consolidation_level": 0,
+      "status": "active",
+      "source": "task_execution",
+      "created_at": "2026-01-13T11:30:00Z",
+      "updated_at": "2026-01-13T11:30:00Z",
+      "last_accessed_at": null
+    }
+  ],
+  "metadata": {
+    "created_at": "2026-01-13T08:00:00Z",
+    "updated_at": "2026-01-13T11:30:00Z"
+  }
+}

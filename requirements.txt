@@ -1,0 +1,16 @@
+# LLM Persistent Memory - Phase 1 MVP Dependencies
+# 仕様書: docs/phase1-implementation-spec.ja.md セクション2
+
+# Azure OpenAI Embedding
+openai>=1.0.0
+
+# PostgreSQL + pgvector
+psycopg2-binary>=2.9.0
+
+# LLM (タスク実行・学び抽出)
+anthropic>=0.39.0
+
+# Development / Testing
+pytest>=7.0.0
+pytest-asyncio>=0.21.0
+python-dotenv>=1.0.0
