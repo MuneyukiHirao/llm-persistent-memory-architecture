@@ -40,6 +40,10 @@ class Phase1Config:
     reactivation_strength: float = 0.5
     """再活性化時の初期強度"""
 
+    # === 教育プロセス ===
+    chunk_size: int = 500
+    """教育プロセスでのチャンク分割サイズ（文字数）"""
+
     # === 減衰（セクション4.2） ===
     expected_tasks_per_day: int = 10
     """想定タスク数/日"""
@@ -124,6 +128,16 @@ class Phase1Config:
 
     embedding_dimension: int = 1536
     """エンベディング次元数"""
+
+    # === Spaced Repetition（間隔反復学習） ===
+    initial_interval_days: int = 1
+    """初回復習間隔（日数）"""
+
+    interval_multiplier: float = 2.0
+    """正解時の間隔倍率"""
+
+    max_interval_days: int = 30
+    """最大間隔（日数）"""
 
     # === スコープ（セクション5） ===
     current_project_id: str = "llm-persistent-memory-phase1"

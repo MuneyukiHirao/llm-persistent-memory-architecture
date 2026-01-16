@@ -1207,7 +1207,7 @@ class TestRecordLearning:
     学び記録フローの単体テスト:
     - content の空チェック
     - エンベディング生成
-    - learnings 構造の作成（perspective あり/なし）
+    - learning フィールドの設定
     - strength_by_perspective の初期化
     - メモリの作成と保存
     - UUID の返却
@@ -1281,12 +1281,12 @@ class TestRecordLearning:
         # repository.create が呼ばれた
         mock_repository.create.assert_called_once()
 
-    def test_record_with_perspective_creates_learnings_dict(
+    def test_record_with_perspective_sets_learning_string(
         self,
         task_executor: TaskExecutor,
         mock_repository: MagicMock,
     ):
-        """perspective 指定時の learnings 構造"""
+        """perspective 指定時に learning が設定される"""
         task_executor.record_learning(
             agent_id="test_agent",
             content="納期は2週間バッファが必要",
@@ -1298,15 +1298,15 @@ class TestRecordLearning:
         call_args = mock_repository.create.call_args
         created_memory: AgentMemory = call_args.args[0]
 
-        # learnings が {perspective: learning} の形式
-        assert created_memory.learnings == {"納期": "バッファ期間の重要性"}
+        # learning が文字列として設定される
+        assert created_memory.learning == "バッファ期間の重要性"
 
-    def test_record_without_perspective_uses_general(
+    def test_record_without_perspective_sets_learning(
         self,
         task_executor: TaskExecutor,
         mock_repository: MagicMock,
     ):
-        """perspective なしの場合は "general" を使用"""
+        """perspective なしでも learning が設定される"""
         task_executor.record_learning(
             agent_id="test_agent",
             content="一般的な学び内容",
@@ -1317,8 +1317,8 @@ class TestRecordLearning:
         call_args = mock_repository.create.call_args
         created_memory: AgentMemory = call_args.args[0]
 
-        # learnings が {"general": learning} の形式
-        assert created_memory.learnings == {"general": "特定の観点に依存しない学び"}
+        # learning が文字列として設定される
+        assert created_memory.learning == "特定の観点に依存しない学び"
 
     def test_record_with_perspective_initializes_strength_by_perspective(
         self,
@@ -1583,7 +1583,7 @@ class TestRecordLearningIntegration:
         assert memory.agent_id == "test_agent"
         assert memory.content == "緊急調達では15%のコスト増を見込む"
         assert memory.embedding == [0.1] * 1536
-        assert memory.learnings == {"コスト": "コスト増の具体的な割合を把握"}
+        assert memory.learning == "コスト増の具体的な割合を把握"
         assert memory.strength_by_perspective == {"コスト": 1.0}
         assert memory.strength == 1.0
         assert memory.source == "task"
@@ -1835,12 +1835,18 @@ class TestExecuteTask:
         assert result.recorded_memory_id is not None
         mock_repository.create.assert_called_once()
 
-    def test_execute_with_extract_learning(
+    def test_execute_with_explicit_learning(
         self,
         task_executor: TaskExecutor,
         mock_repository: MagicMock,
     ):
-        """学び記録が行われる（extract_learning=True 時）"""
+        """学び記録が行われる（learning_content と learning_text の両方指定時）
+
+        新しい設計:
+        - extract_learning=True は deprecated
+        - learning_content と learning_text の両方を明示的に指定した場合のみ学びを記録
+        - 「例外的なイベント」のみ記録する設計思想
+        """
         def task_func(memories: List[ScoredMemory]) -> str:
             return "Important task result to learn from"
 
@@ -1848,7 +1854,8 @@ class TestExecuteTask:
             query="test query",
             agent_id="test_agent",
             task_func=task_func,
-            extract_learning=True,
+            learning_content="学んだ内容: 緊急調達は1.5倍のコストがかかる",
+            learning_text="納期短縮とコストのトレードオフを学んだ",
         )
 
         # 学び記録が行われた

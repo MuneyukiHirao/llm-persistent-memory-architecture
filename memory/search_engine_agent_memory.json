@@ -14,13 +14,6 @@
         "API連携": 1.5,
         "フォールバック": 1.2
       },
-      "learnings": {
-        "検索精度": "text-embedding-3-smallは1536次元でコストと精度のバランスが良い。空文字列やホワイトスペースのみの入力は検索精度を下げるため事前にバリデーションが必要。",
-        "レスポンス性能": "複数テキストのバッチ処理（get_embeddings）を使用することで、APIコール数を削減しレスポンス時間を短縮できる。",
-        "スケーラビリティ": "シングルトンパターンでクライアントインスタンスを管理することで、接続の再利用とリソース効率を向上。",
-        "API連携": "Azure OpenAI APIはapiversion指定が必須。openai>=1.0.0のAzureOpenAIクラスを使用することで標準OpenAI APIとの互換性を維持しつつAzure形式のエンドポイントを使用可能。環境変数は複数パターン（AZURE_* / OpenAI*）をサポートし運用柔軟性を確保。",
-        "フォールバック": "環境変数が設定されていない場合は明確なエラーメッセージで早期失敗。is_available()メソッドで接続テストが可能。"
-      },
       "access_count": 0,
       "candidate_count": 0,
       "consolidation_level": 0,
@@ -28,7 +21,8 @@
       "source": "task_execution",
       "created_at": "2026-01-13T08:29:36Z",
       "updated_at": "2026-01-13T08:29:36Z",
-      "last_accessed_at": null
+      "last_accessed_at": null,
+      "learning": "[API連携] Azure OpenAI APIはapiversion指定が必須。openai>=1.0.0のAzureOpenAIクラスを使用することで標準OpenAI APIとの互換性を維持しつつAzure形式のエンドポイントを使用可能。環境変数は複数パターン（AZURE_* / OpenAI*）をサポートし運用柔軟性を確保。\n[検索精度] text-embedding-3-smallは1536次元でコストと精度のバランスが良い。空文字列やホワイトスペースのみの入力は検索精度を下げるため事前にバリデーションが必要。\n[レスポンス性能] 複数テキストのバッチ処理（get_embeddings）を使用することで、APIコール数を削減しレスポンス時間を短縮できる。"
     },
     {
       "id": "mem_search_002",
@@ -44,13 +38,6 @@
         "API連携": 1.3,
         "フォールバック": 1.2
       },
-      "learnings": {
-        "検索精度": "pgvectorのcosine距離による類似度検索は、similarity_threshold=0.3でノイズを効果的にフィルタリングできる。テストでは「緊急調達のコスト」クエリに対し正解記憶が類似度0.765で1位返却、無関係な記憶は閾値以下で除外された。",
-        "レスポンス性能": "candidate_limit=50で候補数を制限することでStage 2ランキングの負荷を軽減。search_by_embeddingメソッドで事前計算済みエンベディングを使用すればAPI呼び出しを節約可能。",
-        "スケーラビリティ": "Phase 1では線形スキャン（インデックスなし）で十分。1万件を超えた場合はCREATE INDEX ... USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100)の追加を検討。",
-        "API連携": "AzureEmbeddingClientとの統合は依存注入パターンで実現。エンベディング取得エラーはAzureEmbeddingErrorをキャッチしVectorSearchErrorとして再スローすることでエラーの追跡性を確保。",
-        "フォールバック": "空文字列や空白のみのクエリは早期にログ警告を出力し空リストを返す安全な処理。embedding IS NOT NULLフィルタでエンベディング未設定レコードを除外し検索エラーを防止。"
-      },
       "access_count": 0,
       "candidate_count": 0,
       "consolidation_level": 0,
@@ -58,7 +45,8 @@
       "source": "task_execution",
       "created_at": "2026-01-13T08:42:00Z",
       "updated_at": "2026-01-13T08:42:00Z",
-      "last_accessed_at": null
+      "last_accessed_at": null,
+      "learning": "[検索精度] pgvectorのcosine距離による類似度検索は、similarity_threshold=0.3でノイズを効果的にフィルタリングできる。テストでは「緊急調達のコスト」クエリに対し正解記憶が類似度0.765で1位返却、無関係な記憶は閾値以下で除外された。\n[スケーラビリティ] Phase 1では線形スキャン（インデックスなし）で十分。1万件を超えた場合はCREATE INDEX ... USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100)の追加を検討。\n[API連携] AzureEmbeddingClientとの統合は依存注入パターンで実現。エンベディング取得エラーはAzureEmbeddingErrorをキャッチしVectorSearchErrorとして再スローすることでエラーの追跡性を確保。"
     },
     {
       "id": "mem_search_003",
@@ -74,13 +62,6 @@
         "API連携": 1.1,
         "フォールバック": 1.3
       },
-      "learnings": {
-        "検索精度": "線形スコア合成（類似度0.50+強度0.30+新鮮さ0.20）で多角的評価を実現。類似度を最重視しつつ、強度と新鮮さで補助的にランキングを調整。観点（perspective）指定によりユースケースに応じた強度評価が可能。",
-        "レスポンス性能": "Stage 1で候補を50件に絞り込んでいるためStage 2はメモリ内計算のみで完結。DBやAPI呼び出しなしで高速なランキングを実現。score_breakdownでデバッグ時の分析も容易。",
-        "スケーラビリティ": "Phase 1は線形スコアで十分な検索品質を確保。MIN_TRAINING_SAMPLES=100件の使用ログが蓄積された後、Phase 2でニューラルスコアラーへの移行を検討可能な設計。",
-        "API連携": "MemoryRankerは外部依存なしの純粋なロジッククラス。VectorSearchとの疎結合でテストが容易。Phase1Configからscore_weightsとtop_k_resultsを取得し設定変更に柔軟に対応。",
-        "フォールバック": "観点指定時にstrength_by_perspectiveに該当観点がない場合は全体のstrengthにフォールバック。last_accessed_atがNULLの場合はcreated_atを使用してrecencyを計算。負の強度は0.0にクリップし安全性を確保。"
-      },
       "access_count": 0,
       "candidate_count": 0,
       "consolidation_level": 0,
@@ -88,7 +69,56 @@
       "source": "task_execution",
       "created_at": "2026-01-13T09:00:00Z",
       "updated_at": "2026-01-13T09:00:00Z",
-      "last_accessed_at": null
+      "last_accessed_at": null,
+      "learning": "[フォールバック] 観点指定時にstrength_by_perspectiveに該当観点がない場合は全体のstrengthにフォールバック。last_accessed_atがNULLの場合はcreated_atを使用してrecencyを計算。負の強度は0.0にクリップし安全性を確保。\n[API連携] MemoryRankerは外部依存なしの純粋なロジッククラス。VectorSearchとの疎結合でテストが容易。Phase1Configからscore_weightsとtop_k_resultsを取得し設定変更に柔軟に対応。\n[検索精度] 線形スコア合成（類似度0.50+強度0.30+新鮮さ0.20）で多角的評価を実現。類似度を最重視しつつ、強度と新鮮さで補助的にランキングを調整。観点（perspective）指定によりユースケースに応じた強度評価が可能。"
+    },
+    {
+      "id": "mem_search_004",
+      "content": "ルーティングロジック（Router）の実装: ルールベースのエージェント選択を4要素のスコア合成で実現。capability_match(0.40) + past_success_rate(0.30) + recent_activity(0.20) + perspective_match(0.10)で総合スコアを計算。キーワード辞書によるマッチングでタスク概要からエージェントの適性を判定。過去の成功率は経験データから、アクティビティスコアは直近1時間のタスク数から負荷分散を考慮。",
+      "scope_level": "domain",
+      "scope_domain": "vector-search",
+      "scope_project": "llm-persistent-memory",
+      "strength": 1.0,
+      "strength_by_perspective": {
+        "検索精度": 1.3,
+        "レスポンス性能": 1.4,
+        "スケーラビリティ": 1.2,
+        "API連携": 1.1,
+        "フォールバック": 1.3
+      },
+      "access_count": 0,
+      "candidate_count": 0,
+      "consolidation_level": 0,
+      "status": "active",
+      "source": "task_execution",
+      "created_at": "2026-01-15T06:20:00Z",
+      "updated_at": "2026-01-15T06:20:00Z",
+      "last_accessed_at": null,
+      "learning": "[API連携] Router は AgentRegistry のみに依存し、外部API不要。past_experiences はメモリ検索結果を受け取る設計で、Phase 1 の TaskExecutor と疎結合。ROUTING_SCORE_WEIGHTS は phase2_config.py から読み込み設定変更が容易。\n[検索精度] キーワードベースのルーティングでは、一般的すぎる動詞（作成、書いて、追加）は複数のエージェントにマッチしてしまう。ドメイン固有のキーワード（pytest、E2E、実装）を優先することで精度向上。タスク概要に加えてitemsを結合することでマッチング精度が向上する。\n[フォールバック] アクティブなエージェントがいない場合は空のRoutingDecisionを返す。過去データがない場合は成功率0.5をデフォルトとして使用。履歴なしのエージェントはactivity_score=1.0で最優先（新規エージェントの積極活用）。"
+    },
+    {
+      "id": "mem_search_005",
+      "content": "NeuralScorer（ニューラルネットベースのルーティングスコアラー）の実装: PyTorchを使用した3層MLPモデル（256→128→64ユニット、ReLU、Dropout 0.2）でエージェント適性スコアを計算。入力は1536次元タスクエンベディング + 6次元タスク特徴量 + 5次元エージェント特徴量 = 1547次元。モデル未学習時はルールベースのフォールバックスコア（capability_match 0.40 + success_rate 0.30 + activity 0.20 + perspective 0.10）で対応。",
+      "scope_level": "domain",
+      "scope_domain": "vector-search",
+      "scope_project": "llm-persistent-memory",
+      "strength": 1.0,
+      "strength_by_perspective": {
+        "検索精度": 1.4,
+        "レスポンス性能": 1.3,
+        "スケーラビリティ": 1.3,
+        "API連携": 1.4,
+        "フォールバック": 1.5
+      },
+      "access_count": 0,
+      "candidate_count": 0,
+      "consolidation_level": 0,
+      "status": "active",
+      "source": "task_execution",
+      "created_at": "2026-01-15T07:30:00Z",
+      "updated_at": "2026-01-15T07:30:00Z",
+      "last_accessed_at": null,
+      "learning": "[検索精度] ニューラルネットはルールベースより高精度なルーティングを実現する可能性がある。タスク特徴量（コード/調査/テストキーワード、複雑度スコア等）とエージェント特徴量（能力数、観点数、成功率等）の組み合わせにより、多次元的な適性評価が可能。特徴量の正規化（task_length/2000, item_count/20等）で入力スケールを統一。\n[フォールバック] neural_scorer_enabled=Falseやモデルファイル未存在時は自動でルールベースにフォールバック。エンベディング取得エラーや推論エラー時もフォールバックで継続。is_model_loaded()でモデル状態を確認可能。get_model_info()でデバッグ情報を取得可能。\n[スケーラビリティ] RoutingScorerModelはカスタム次元・隠れ層に対応可能な設計。将来的にエージェント数やタスクタイプが増えても、学習データを増やすことでモデルを再訓練可能。min_training_samples=1000件でニューラルモードを有効化する段階的移行を想定。"
     }
   ]
 }

@@ -122,7 +122,8 @@ class VectorSearch:
                 scope_level, scope_domain, scope_project,
                 strength, strength_by_perspective,
                 access_count, candidate_count, last_accessed_at,
-                impact_score, consolidation_level, learnings,
+                next_review_at, review_count,
+                impact_score, consolidation_level, learning,
                 status, source, created_at, updated_at, last_decay_at,
                 1 - (embedding <=> %s::vector) as similarity
             FROM agent_memory
@@ -219,7 +220,8 @@ class VectorSearch:
                 scope_level, scope_domain, scope_project,
                 strength, strength_by_perspective,
                 access_count, candidate_count, last_accessed_at,
-                impact_score, consolidation_level, learnings,
+                next_review_at, review_count,
+                impact_score, consolidation_level, learning,
                 status, source, created_at, updated_at, last_decay_at,
                 1 - (embedding <=> %s::vector) as similarity
             FROM agent_memory

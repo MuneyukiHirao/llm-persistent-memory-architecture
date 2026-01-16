@@ -15,11 +15,6 @@
         "正確性": 1.0,
         "メンテナンス性": 1.2
       },
-      "learnings": {
-        "理解しやすさ": "初心者は5行以内のコードで動作確認できることを求める。READMEからクイックスタートへの導線が重要",
-        "実用性": "examples/フォルダが存在しないプロジェクトは採用されにくい。コピペで動くサンプルが必須",
-        "メンテナンス性": "既存の設計ドキュメントへの参照リンクを活用することで、重複記述を避けつつ整合性を保てる"
-      },
       "access_count": 0,
       "candidate_count": 0,
       "consolidation_level": 0,
@@ -27,7 +22,8 @@
       "source": "task_execution",
       "created_at": "2026-01-13T14:15:00+09:00",
       "updated_at": "2026-01-13T14:15:00+09:00",
-      "last_accessed_at": null
+      "last_accessed_at": null,
+      "learning": "[理解しやすさ] 初心者は5行以内のコードで動作確認できることを求める。READMEからクイックスタートへの導線が重要\n[実用性] examples/フォルダが存在しないプロジェクトは採用されにくい。コピペで動くサンプルが必須\n[メンテナンス性] 既存の設計ドキュメントへの参照リンクを活用することで、重複記述を避けつつ整合性を保てる"
     },
     {
       "id": "mem_doc_002",
@@ -43,10 +39,6 @@
         "正確性": 1.5,
         "メンテナンス性": 1.4
       },
-      "learnings": {
-        "正確性": "実装コードのdocstringが詳細で正確。これを元にドキュメントを作成すれば実装との乖離を防げる",
-        "メンテナンス性": "docstringからの生成を前提とした構造にすれば、将来の実装変更にも追従しやすい"
-      },
       "access_count": 0,
       "candidate_count": 0,
       "consolidation_level": 0,
@@ -54,7 +46,8 @@
       "source": "task_execution",
       "created_at": "2026-01-13T14:15:00+09:00",
       "updated_at": "2026-01-13T14:15:00+09:00",
-      "last_accessed_at": null
+      "last_accessed_at": null,
+      "learning": "[正確性] 実装コードのdocstringが詳細で正確。これを元にドキュメントを作成すれば実装との乖離を防げる\n[メンテナンス性] docstringからの生成を前提とした構造にすれば、将来の実装変更にも追従しやすい"
     },
     {
       "id": "mem_doc_003",
@@ -70,9 +63,6 @@
         "正確性": 1.0,
         "メンテナンス性": 1.0
       },
-      "learnings": {
-        "網羅性": "全てを網羅しようとせず、MVP精神でまず動くドキュメントを優先。詳細は需要に応じて追加"
-      },
       "access_count": 0,
       "candidate_count": 0,
       "consolidation_level": 0,
@@ -80,7 +70,8 @@
       "source": "task_execution",
       "created_at": "2026-01-13T14:15:00+09:00",
       "updated_at": "2026-01-13T14:15:00+09:00",
-      "last_accessed_at": null
+      "last_accessed_at": null,
+      "learning": "[網羅性] 全てを網羅しようとせず、MVP精神でまず動くドキュメントを優先。詳細は需要に応じて追加"
     },
     {
       "id": "mem_doc_004",
@@ -96,11 +87,6 @@
         "正確性": 1.5,
         "メンテナンス性": 1.2
       },
-      "learnings": {
-        "理解しやすさ": "「5分以内」という具体的な時間を明示すると、ユーザーは心理的なハードルが下がり、取り組みやすくなる",
-        "実用性": "サンプルコードは必ず実装のコンストラクタ引数を確認してから記述。インポートパスや引数順序の誤りは初心者を迷わせる原因になる",
-        "正確性": "環境変数は複数の命名規則（AZURE_OPENAI_* と OpenAIEmbedding*）を実装がサポートしている場合、両方を記載すると異なる設定からの移行がスムーズ"
-      },
       "access_count": 0,
       "candidate_count": 0,
       "consolidation_level": 0,
@@ -108,7 +94,176 @@
       "source": "task_execution",
       "created_at": "2026-01-13T15:30:00+09:00",
       "updated_at": "2026-01-13T15:30:00+09:00",
-      "last_accessed_at": null
+      "last_accessed_at": null,
+      "learning": "[正確性] 環境変数は複数の命名規則（AZURE_OPENAI_* と OpenAIEmbedding*）を実装がサポートしている場合、両方を記載すると異なる設定からの移行がスムーズ\n[実用性] サンプルコードは必ず実装のコンストラクタ引数を確認してから記述。インポートパスや引数順序の誤りは初心者を迷わせる原因になる\n[理解しやすさ] 「5分以内」という具体的な時間を明示すると、ユーザーは心理的なハードルが下がり、取り組みやすくなる"
+    },
+    {
+      "id": "mem_doc_005",
+      "content": "サンプルスクリプト（examples/quickstart.py）作成時は、実行場所に依存しないパス設定が重要。PROJECT_ROOTを動的に算出してsys.pathに追加することで、プロジェクトルートからでもexamplesディレクトリからでも実行可能になる。また、環境変数の事前チェック→DB接続テスト→コンポーネント初期化→実処理→クリーンアップの順序で実装し、各Stepに番号と説明をつけることで、初心者でも進捗を把握しやすい構成になる",
+      "scope_level": "project",
+      "scope_domain": null,
+      "scope_project": "llm-persistent-memory-phase1",
+      "strength": 1.0,
+      "strength_by_perspective": {
+        "理解しやすさ": 1.5,
+        "実用性": 1.5,
+        "網羅性": 1.2,
+        "正確性": 1.3,
+        "メンテナンス性": 1.3
+      },
+      "access_count": 0,
+      "candidate_count": 0,
+      "consolidation_level": 0,
+      "status": "active",
+      "source": "task_execution",
+      "created_at": "2026-01-13T16:45:00+09:00",
+      "updated_at": "2026-01-13T16:45:00+09:00",
+      "last_accessed_at": null,
+      "learning": "[実用性] PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) でパスを算出し、sys.path.insert(0, PROJECT_ROOT) で追加するパターンは汎用性が高い\n[正確性] db.health_check() を初期化直後に呼び出すことで、DB接続問題を早期に検出できる。この段階でエラーを出すとトラブルシューティングが容易になる\n[メンテナンス性] 環境変数チェックを専用関数 check_environment() として切り出すことで、チェック項目の追加・変更が容易になる"
+    },
+    {
+      "id": "mem_doc_006",
+      "content": "教育的なサンプルコード（basic_usage.py）は、各機能を独立した関数に分離し、main()から順番に呼び出す構成が効果的。run_example_1_xxx(), run_example_2_xxx() のように番号付けすることで実行順序が明確になる。さらに、各操作のbefore/after状態を表示することで、システムの動作原理を視覚的に理解できる",
+      "scope_level": "domain",
+      "scope_domain": "documentation",
+      "scope_project": null,
+      "strength": 1.0,
+      "strength_by_perspective": {
+        "理解しやすさ": 1.5,
+        "実用性": 1.4,
+        "網羅性": 1.3,
+        "正確性": 1.2,
+        "メンテナンス性": 1.4
+      },
+      "access_count": 0,
+      "candidate_count": 0,
+      "consolidation_level": 0,
+      "status": "active",
+      "source": "task_execution",
+      "created_at": "2026-01-13T22:55:00+09:00",
+      "updated_at": "2026-01-13T22:55:00+09:00",
+      "last_accessed_at": null,
+      "learning": "[実用性] グローバル変数（executor, repository等）を使ってExample間でコンポーネントを共有することで、各Exampleが独立して動作しつつ、状態が引き継がれる動作を示せる\n[網羅性] quickstart.py（最小構成）とbasic_usage.py（網羅的）を分離することで、動作確認したいユーザーと学習したいユーザーの両方のニーズに対応できる\n[メンテナンス性] created_memory_ids リストでテスト中に作成したメモリを追跡し、finally節でクリーンアップすることで、テスト実行後のDB汚染を防げる"
+    },
+    {
+      "id": "mem_doc_007",
+      "content": "APIリファレンス作成では、目次→各クラスセクション→パラメータ一覧という階層構造が有効。各メソッドは「説明・引数テーブル・戻り値・例外・使用例」の5点セットで記述し、引数テーブルには型と説明を必ず含める。パラメータ一覧では「デフォルト値・推奨範囲・調整指針」の3列を設けることで、ユーザーがカスタマイズしやすくなる",
+      "scope_level": "domain",
+      "scope_domain": "documentation",
+      "scope_project": null,
+      "strength": 1.0,
+      "strength_by_perspective": {
+        "理解しやすさ": 1.4,
+        "実用性": 1.3,
+        "網羅性": 1.5,
+        "正確性": 1.5,
+        "メンテナンス性": 1.3
+      },
+      "access_count": 0,
+      "candidate_count": 0,
+      "consolidation_level": 0,
+      "status": "active",
+      "source": "task_execution",
+      "created_at": "2026-01-13T23:30:00+09:00",
+      "updated_at": "2026-01-13T23:30:00+09:00",
+      "last_accessed_at": null,
+      "learning": "[網羅性] 全クラス9種（TaskExecutor, MemoryRepository, StrengthManager, VectorSearch, MemoryRanker, SleepPhaseProcessor, AzureEmbeddingClient, Phase1Config, AgentMemory）+ DatabaseConnection + パラメータ一覧で計11セクション構成が適切\n[正確性] 各メソッドの引数と戻り値は、必ずソースコードのdocstringとシグネチャを参照して記述。手動で型を推測すると誤りの原因になる\n[実用性] 使用例は引数の型と戻り値を明確に示し、import文から完結したコードを提供する。型ヒントがあると静的解析ツールとの相性も良い"
+    },
+    {
+      "id": "mem_doc_008",
+      "content": "APIリファレンスの関連データ構造（ScoredMemory, TaskExecutionResult, SleepPhaseResult等）はデータクラスとして別セクションに記載することで、戻り値の構造が明確になる。特にscore_breakdownのような入れ子構造は、JSONサンプルで内容を示すと理解しやすい",
+      "scope_level": "project",
+      "scope_domain": null,
+      "scope_project": "llm-persistent-memory-phase1",
+      "strength": 1.0,
+      "strength_by_perspective": {
+        "理解しやすさ": 1.5,
+        "実用性": 1.3,
+        "網羅性": 1.4,
+        "正確性": 1.4,
+        "メンテナンス性": 1.2
+      },
+      "access_count": 0,
+      "candidate_count": 0,
+      "consolidation_level": 0,
+      "status": "active",
+      "source": "task_execution",
+      "created_at": "2026-01-13T23:30:00+09:00",
+      "updated_at": "2026-01-13T23:30:00+09:00",
+      "last_accessed_at": null,
+      "learning": "[理解しやすさ] ScoredMemoryのscore_breakdownは辞書型で複数のスコア成分を含む。実際の出力例を示すことで、デバッグ時に何を見ればよいかわかる\n[網羅性] 例外クラス（VectorSearchError, AzureEmbeddingError）も別セクションで記載し、エラーハンドリングの参照を容易にする\n[正確性] データクラスの属性一覧テーブルは、ソースコードの@dataclass定義と完全に一致させる必要がある"
+    },
+    {
+      "id": "mem_doc_009",
+      "content": "Phase間の実装仕様書では「MVPの範囲」を明確に定義し、実装しないもの（Phase N+1に先送り）を列挙することが重要。また、前Phaseの実装済みモジュールとの連携方法を明示し、再利用可能なコンポーネントを特定することで、実装者の負担を軽減できる。観測指標と調整パラメータの対応表を含めることで、検証目標の達成基準が明確になる",
+      "scope_level": "domain",
+      "scope_domain": "technical-writing",
+      "scope_project": null,
+      "strength": 1.0,
+      "strength_by_perspective": {
+        "理解しやすさ": 1.4,
+        "実用性": 1.5,
+        "網羅性": 1.5,
+        "正確性": 1.4,
+        "メンテナンス性": 1.5
+      },
+      "access_count": 0,
+      "candidate_count": 0,
+      "consolidation_level": 0,
+      "status": "active",
+      "source": "task_execution",
+      "created_at": "2026-01-14T10:30:00+09:00",
+      "updated_at": "2026-01-14T10:30:00+09:00",
+      "last_accessed_at": null,
+      "learning": "[メンテナンス性] Phase 1からの変更点を差分として明示し、継承クラス（Phase2Config extends Phase1Config）のような設計パターンを仕様書にも反映することで、将来の拡張に対応しやすくなる\n[網羅性] 仕様書に含めるべき項目チェックリスト: MVPの範囲、技術スタック、データスキーマ、パラメータ初期値、実装順序、観測指標、テスト戦略、次フェーズへの移行条件\n[正確性] 既存の設計ドキュメント（architecture.ja.md等）から引用する際は、該当セクション番号を明記し、変更があった場合の追跡を容易にする"
+    },
+    {
+      "id": "mem_doc_010",
+      "content": "Phase 3 実装仕様書では「スケーラビリティと実運用」に焦点を当て、Phase 2のルールベース方式からニューラルネットベースのルーティングへの移行を設計。既存実装（Router, Orchestrator）の拡張ポイントを明確にし、HybridRouterのような段階的移行パターンを示すことで、後方互換性を保ちながら新機能を導入できる設計を文書化",
+      "scope_level": "project",
+      "scope_domain": null,
+      "scope_project": "llm-persistent-memory",
+      "strength": 1.0,
+      "strength_by_perspective": {
+        "理解しやすさ": 1.4,
+        "実用性": 1.5,
+        "網羅性": 1.5,
+        "正確性": 1.4,
+        "メンテナンス性": 1.5
+      },
+      "access_count": 0,
+      "candidate_count": 0,
+      "consolidation_level": 0,
+      "status": "active",
+      "source": "task_execution",
+      "created_at": "2026-01-15T09:30:00+09:00",
+      "updated_at": "2026-01-15T09:30:00+09:00",
+      "last_accessed_at": null,
+      "learning": "[メンテナンス性] Phase3ConfigがPhase2Configを継承する設計を仕様書に反映し、新パラメータのデフォルト値（neural_scorer_enabled=False等）で段階的有効化を可能にする設計を文書化\n[実用性] 既存コードの拡張ポイント（_delegate_taskのモック→実API呼び出し、Router→HybridRouter）を仕様書で明示することで、実装者は何を変更すべきか把握しやすい\n[網羅性] スケーラビリティ仕様には、タスクキュー、負荷分散、複数オーケストレーター協調、WebSocket、A/Bテストの5領域をカバー。各領域にデータスキーマ、パラメータ、クラス設計を含める"
+    },
+    {
+      "id": "mem_doc_011",
+      "content": "CLI仕様書では「既存実装の活用方法」セクションを設け、各CLIコマンドと既存クラス（AgentRegistry, EducationProcess, Orchestrator等）のマッピング表を記載することで、実装者が何を再利用すべきか明確になる。さらに、コマンド別の実装フローを具体的なコード例で示すことで、設計と実装のギャップを埋めやすい",
+      "scope_level": "domain",
+      "scope_domain": "technical-writing",
+      "scope_project": null,
+      "strength": 1.0,
+      "strength_by_perspective": {
+        "理解しやすさ": 1.5,
+        "実用性": 1.5,
+        "網羅性": 1.4,
+        "正確性": 1.3,
+        "メンテナンス性": 1.4
+      },
+      "access_count": 0,
+      "candidate_count": 0,
+      "consolidation_level": 0,
+      "status": "active",
+      "source": "task_execution",
+      "created_at": "2026-01-16T15:00:00+09:00",
+      "updated_at": "2026-01-16T15:00:00+09:00",
+      "last_accessed_at": null,
+      "learning": "[実用性] CLIContextクラスで依存関係を一元管理し、clickのpass_decoratorで共有することで、各コマンドでの初期化コードが簡潔になる\n[メンテナンス性] 高レベルコンポーネント（Orchestrator等）は遅延初期化（@propertyデコレータ）とすることで、使用しないコマンドでの不要な初期化を避けられる\n[網羅性] CLI仕様書のセクション構成: 設計思想 → コマンド体系 → 詳細設計 → YAMLスキーマ → 既存実装活用 → ディレクトリ構成 → 実装計画 → 技術選定 → エラーハンドリング → テスト戦略 → 将来拡張"
     }
   ]
 }

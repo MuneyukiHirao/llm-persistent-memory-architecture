@@ -49,7 +49,7 @@ class TestAgentMemoryInitialization:
         embedding = [0.1] * 1536
         tags = ["tag1", "tag2"]
         strength_by_perspective = {"コスト": 1.2, "納期": 0.8}
-        learnings = {"コスト": "緊急調達で15%コスト増", "納期": "2週間バッファが必要"}
+        learning = "緊急調達で15%コスト増、2週間バッファが必要"
 
         memory = AgentMemory(
             id=memory_id,
@@ -67,7 +67,7 @@ class TestAgentMemoryInitialization:
             last_accessed_at=now,
             impact_score=2.0,
             consolidation_level=2,
-            learnings=learnings,
+            learning=learning,
             status="active",
             source="task",
             created_at=now,
@@ -91,7 +91,7 @@ class TestAgentMemoryInitialization:
         assert memory.last_accessed_at == now
         assert memory.impact_score == 2.0
         assert memory.consolidation_level == 2
-        assert memory.learnings == learnings
+        assert memory.learning == learning
         assert memory.status == "active"
         assert memory.source == "task"
         assert memory.created_at == now
@@ -124,7 +124,7 @@ class TestAgentMemoryInitialization:
         assert memory.last_accessed_at is None
         assert memory.impact_score == 0.0
         assert memory.consolidation_level == 0
-        assert memory.learnings == {}
+        assert memory.learning is None
         assert memory.status == "active"
         assert memory.source is None
         assert memory.last_decay_at is None
@@ -152,7 +152,7 @@ class TestToDictMethod:
             last_accessed_at=datetime(2024, 1, 15, 12, 0, 0),
             impact_score=2.0,
             consolidation_level=2,
-            learnings={"コスト": "緊急調達で15%コスト増"},
+            learning="緊急調達で15%コスト増",
             status="active",
             source="task",
             created_at=datetime(2024, 1, 1, 10, 0, 0),
@@ -164,7 +164,7 @@ class TestToDictMethod:
         """to_dict() が全フィールドを含む辞書を返す"""
         result = sample_memory.to_dict()
 
-        assert len(result) == 21
+        assert len(result) == 23
         assert "id" in result
         assert "agent_id" in result
         assert "content" in result
@@ -178,9 +178,11 @@ class TestToDictMethod:
         assert "access_count" in result
         assert "candidate_count" in result
         assert "last_accessed_at" in result
+        assert "next_review_at" in result
+        assert "review_count" in result
         assert "impact_score" in result
         assert "consolidation_level" in result
-        assert "learnings" in result
+        assert "learning" in result
         assert "status" in result
         assert "source" in result
         assert "created_at" in result
@@ -264,7 +266,7 @@ class TestFromRowMethod:
             "last_accessed_at": now,
             "impact_score": 2.0,
             "consolidation_level": 2,
-            "learnings": {"コスト": "緊急調達で15%コスト増"},
+            "learning": "緊急調達で15%コスト増",
             "status": "active",
             "source": "task",
             "created_at": now,
@@ -289,7 +291,7 @@ class TestFromRowMethod:
         assert memory.last_accessed_at == now
         assert memory.impact_score == 2.0
         assert memory.consolidation_level == 2
-        assert memory.learnings == {"コスト": "緊急調達で15%コスト増"}
+        assert memory.learning == "緊急調達で15%コスト増"
         assert memory.status == "active"
         assert memory.source == "task"
         assert memory.created_at == now
@@ -305,7 +307,8 @@ class TestFromRowMethod:
         #            scope_level, scope_domain, scope_project,
         #            strength, strength_by_perspective,
         #            access_count, candidate_count, last_accessed_at,
-        #            impact_score, consolidation_level, learnings,
+        #            next_review_at, review_count,
+        #            impact_score, consolidation_level, learning,
         #            status, source, created_at, updated_at, last_decay_at
         row = (
             memory_id,                    # 0: id
@@ -321,14 +324,16 @@ class TestFromRowMethod:
             5,                            # 10: access_count
             10,                           # 11: candidate_count
             now,                          # 12: last_accessed_at
-            2.0,                          # 13: impact_score
-            2,                            # 14: consolidation_level
-            {"コスト": "緊急調達で15%"},   # 15: learnings
-            "active",                     # 16: status
-            "task",                       # 17: source
-            now,                          # 18: created_at
-            now,                          # 19: updated_at
-            now,                          # 20: last_decay_at
+            now,                          # 13: next_review_at
+            3,                            # 14: review_count
+            2.0,                          # 15: impact_score
+            2,                            # 16: consolidation_level
+            "緊急調達で15%コスト増",       # 17: learning
+            "active",                     # 18: status
+            "task",                       # 19: source
+            now,                          # 20: created_at
+            now,                          # 21: updated_at
+            now,                          # 22: last_decay_at
         )
 
         memory = AgentMemory.from_row(row)
@@ -342,6 +347,8 @@ class TestFromRowMethod:
         assert memory.scope_domain == "procurement"
         assert memory.scope_project == "project_001"
         assert memory.strength == 1.5
+        assert memory.next_review_at == now
+        assert memory.review_count == 3
 
     def test_from_row_dict_with_string_uuid(self):
         """dict形式でUUIDが文字列の場合"""
@@ -362,12 +369,13 @@ class TestFromRowMethod:
     def test_from_row_tuple_with_string_uuid(self):
         """tuple形式でUUIDが文字列の場合"""
         now = datetime.now()
+        # 23カラム: next_review_at, review_count追加
         row = (
             "12345678-1234-5678-1234-567812345678",  # id (string)
             "test_agent",
             "テスト",
             None, [], None, None, None, None, None,
-            None, None, None, None, None, None,
+            None, None, None, None, None, None, None, None,
             None, None, now, now, None,
         )
 
@@ -395,7 +403,7 @@ class TestFromRowMethod:
             "last_accessed_at": None,
             "impact_score": None,
             "consolidation_level": None,
-            "learnings": None,
+            "learning": None,
             "status": None,
             "source": None,
             "created_at": now,
@@ -415,12 +423,13 @@ class TestFromRowMethod:
         assert memory.candidate_count == 0
         assert memory.impact_score == 0.0
         assert memory.consolidation_level == 0
-        assert memory.learnings == {}
+        assert memory.learning is None
         assert memory.status == "active"
 
     def test_from_row_tuple_with_null_values(self):
         """tuple形式でNULL値のハンドリング"""
         now = datetime.now()
+        # 23カラム: next_review_at, review_count追加
         row = (
             uuid4(),           # 0: id
             "test_agent",      # 1: agent_id
@@ -435,14 +444,16 @@ class TestFromRowMethod:
             None,              # 10: access_count
             None,              # 11: candidate_count
             None,              # 12: last_accessed_at
-            None,              # 13: impact_score
-            None,              # 14: consolidation_level
-            None,              # 15: learnings
-            None,              # 16: status
-            None,              # 17: source
-            now,               # 18: created_at
-            now,               # 19: updated_at
-            None,              # 20: last_decay_at
+            None,              # 13: next_review_at
+            None,              # 14: review_count
+            None,              # 15: impact_score
+            None,              # 16: consolidation_level
+            None,              # 17: learning
+            None,              # 18: status
+            None,              # 19: source
+            now,               # 20: created_at
+            now,               # 21: updated_at
+            None,              # 22: last_decay_at
         )
 
         memory = AgentMemory.from_row(row)
@@ -455,6 +466,8 @@ class TestFromRowMethod:
         assert memory.strength_by_perspective == {}
         assert memory.access_count == 0
         assert memory.candidate_count == 0
+        assert memory.next_review_at is None
+        assert memory.review_count == 0
 
 
 class TestCreateFactoryMethod:
@@ -505,7 +518,7 @@ class TestCreateFactoryMethod:
         assert memory.last_accessed_at is None
         assert memory.impact_score == 0.0
         assert memory.consolidation_level == 0
-        assert memory.learnings == {}
+        assert memory.learning is None
         assert memory.status == "active"
         assert memory.source is None
         assert memory.last_decay_at is None
@@ -527,7 +540,7 @@ class TestCreateFactoryMethod:
         embedding = [0.1] * 1536
         tags = ["tag1", "tag2"]
         strength_by_perspective = {"コスト": 1.2, "納期": 0.8}
-        learnings = {"コスト": "緊急調達で15%コスト増"}
+        learning = "緊急調達で15%コスト増"
 
         memory = AgentMemory.create(
             agent_id="test_agent",
@@ -539,7 +552,7 @@ class TestCreateFactoryMethod:
             scope_project="project_001",
             strength=0.8,
             strength_by_perspective=strength_by_perspective,
-            learnings=learnings,
+            learning=learning,
             source="task",
         )
 
@@ -550,7 +563,7 @@ class TestCreateFactoryMethod:
         assert memory.scope_project == "project_001"
         assert memory.strength == 0.8
         assert memory.strength_by_perspective == strength_by_perspective
-        assert memory.learnings == learnings
+        assert memory.learning == learning
         assert memory.source == "task"
 
 
@@ -583,13 +596,13 @@ class TestCreateFromEducationMethod:
             tags=["学習", "基礎知識"],
             scope_level="universal",
             strength_by_perspective={"理解度": 0.5},
-            learnings={"基礎": "基本的な概念の理解"},
+            learning="基本的な概念の理解",
         )
 
         assert memory.tags == ["学習", "基礎知識"]
         assert memory.scope_level == "universal"
         assert memory.strength_by_perspective == {"理解度": 0.5}
-        assert memory.learnings == {"基礎": "基本的な概念の理解"}
+        assert memory.learning == "基本的な概念の理解"
         assert memory.strength == 0.5  # 常に0.5
         assert memory.source == "education"  # 常にeducation
 

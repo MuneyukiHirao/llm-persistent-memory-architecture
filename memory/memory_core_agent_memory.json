@@ -1,6 +1,6 @@
 {
   "agent_id": "core_agent",
-  "learnings": [
+  "memories": [
     {
       "task_id": "core_001",
       "timestamp": "2026-01-13T08:00:00Z",
@@ -9,7 +9,12 @@
       "related_files": [
         "docs/phase1-implementation-spec.ja.md"
       ],
-      "tags": ["directory-structure", "phase1", "azure-openai"]
+      "tags": [
+        "directory-structure",
+        "phase1",
+        "azure-openai"
+      ],
+      "learning": null
     },
     {
       "id": "mem_core_002",
@@ -25,13 +30,6 @@
         "効率性": 1.0,
         "テスト容易性": 1.0
       },
-      "learnings": {
-        "強度の正確性": "このタスクは強度管理に直接関係しないが、構造設計の基盤を作った",
-        "観点別強度": "このタスクは観点別強度に直接関係しないが、strength_by_perspectiveを格納するモデル層の準備ができた",
-        "原子性": "ファイル作成は並列実行可能だが、ディレクトリ作成は先行する必要がある（依存関係あり）",
-        "効率性": "mkdir -p で再帰的ディレクトリ作成、並列Write呼び出しでスケルトン作成を効率化",
-        "テスト容易性": "各モジュールを独立したディレクトリに分離することで、モジュール単位のテストが容易になる"
-      },
       "access_count": 0,
       "candidate_count": 0,
       "consolidation_level": 0,
@@ -39,7 +37,8 @@
       "source": "task_execution",
       "created_at": "2026-01-13T09:00:00Z",
       "updated_at": "2026-01-13T09:00:00Z",
-      "last_accessed_at": null
+      "last_accessed_at": null,
+      "learning": "[観点別強度] このタスクは観点別強度に直接関係しないが、strength_by_perspectiveを格納するモデル層の準備ができた\n[テスト容易性] 各モジュールを独立したディレクトリに分離することで、モジュール単位のテストが容易になる\n[効率性] mkdir -p で再帰的ディレクトリ作成、並列Write呼び出しでスケルトン作成を効率化"
     },
     {
       "id": "mem_core_003",
@@ -56,13 +55,6 @@
         "効率性": 1.0,
         "テスト容易性": 1.0
       },
-      "learnings": {
-        "強度の正確性": "設定ファイルで2段階強化のパラメータを明示的に分離して定義。strength_increment_on_use (0.1) と perspective_strength_increment (0.15) を別々に管理することで、強化処理の正確性を担保",
-        "観点別強度": "strength_by_perspectiveの初期化は設定ファイルではなくagents.py側で行う設計。設定は観点別強度の増分量のみを提供することで責務を分離",
-        "原子性": "dataclassは不変性を保証しないが、設定値をまとめて一つのインスタンスで管理することで整合性を高める。frozen=Trueを使えば不変にできるが、今回は柔軟性を優先",
-        "効率性": "field(default_factory=lambda: [...]) を使用してList/Dictのデフォルト値を安全に初期化。クラスレベルのmutable共有を防ぐ",
-        "テスト容易性": "dataclassによりPhase1Config(similarity_threshold=0.4)のようにカスタム設定を注入可能。テスト時のパラメータ変更が容易"
-      },
       "access_count": 0,
       "candidate_count": 0,
       "consolidation_level": 0,
@@ -70,7 +62,8 @@
       "source": "task_execution",
       "created_at": "2026-01-13T09:30:00Z",
       "updated_at": "2026-01-13T09:30:00Z",
-      "last_accessed_at": null
+      "last_accessed_at": null,
+      "learning": "[強度の正確性] 設定ファイルで2段階強化のパラメータを明示的に分離して定義。strength_increment_on_use (0.1) と perspective_strength_increment (0.15) を別々に管理することで、強化処理の正確性を担保\n[原子性] dataclassは不変性を保証しないが、設定値をまとめて一つのインスタンスで管理することで整合性を高める。frozen=Trueを使えば不変にできるが、今回は柔軟性を優先\n[効率性] field(default_factory=lambda: [...]) を使用してList/Dictのデフォルト値を安全に初期化。クラスレベルのmutable共有を防ぐ"
     },
     {
       "id": "mem_core_004",
@@ -87,13 +80,6 @@
         "効率性": 1.0,
         "テスト容易性": 1.0
       },
-      "learnings": {
-        "強度の正確性": "DB接続管理は強度管理に直接関係しないが、正確なトランザクション制御がデータ整合性の基盤となる。strength更新時のcommit/rollbackが確実に行われることが前提",
-        "観点別強度": "DB接続層は観点別強度に直接関係しない。上位層（memory_repository）で観点別の処理を行う",
-        "原子性": "コンテキストマネージャーでcommit/rollbackを確実に制御。例外発生時のrollbackが自動で行われる設計により、複数フィールド更新時のトランザクション整合性を保証",
-        "効率性": "ThreadedConnectionPoolによる遅延初期化で接続のオーバーヘッドを削減。min/max_connectionsをパラメータ化し、負荷に応じた調整を可能に",
-        "テスト容易性": "database_urlをコンストラクタで注入可能にすることで、テスト用DBへの切り替えが容易。シングルトンパターンも提供しつつ、個別インスタンス作成も可能な柔軟な設計"
-      },
       "access_count": 0,
       "candidate_count": 0,
       "consolidation_level": 0,
@@ -101,7 +87,8 @@
       "source": "task_execution",
       "created_at": "2026-01-13T10:00:00Z",
       "updated_at": "2026-01-13T10:00:00Z",
-      "last_accessed_at": null
+      "last_accessed_at": null,
+      "learning": "[強度の正確性] DB接続管理は強度管理に直接関係しないが、正確なトランザクション制御がデータ整合性の基盤となる。strength更新時のcommit/rollbackが確実に行われることが前提\n[原子性] コンテキストマネージャーでcommit/rollbackを確実に制御。例外発生時のrollbackが自動で行われる設計により、複数フィールド更新時のトランザクション整合性を保証\n[テスト容易性] database_urlをコンストラクタで注入可能にすることで、テスト用DBへの切り替えが容易。シングルトンパターンも提供しつつ、個別インスタンス作成も可能な柔軟な設計"
     },
     {
       "id": "mem_core_005",
@@ -118,13 +105,6 @@
         "効率性": 0.8,
         "テスト容易性": 1.0
       },
-      "learnings": {
-        "強度の正確性": "candidate_count と access_count を明確に分離したフィールドとして定義。docstringで各フィールドの役割（検索候補 vs 実使用）を明記し、2段階強化の設計意図をコードに埋め込んだ",
-        "観点別強度": "strength_by_perspective を Dict[str, float] として定義し、観点名をキーとして柔軟に対応。create()ファクトリメソッドで初期値を注入可能にし、エージェント定義との連携を容易にした",
-        "原子性": "copy_with()メソッドでイミュータブルな更新パターンを提供。複数フィールドを同時に更新する際も元インスタンスを変更せず、新インスタンスを返すことで予期しない副作用を防止",
-        "効率性": "from_row()でtuple形式（標準cursor）とdict形式（RealDictCursor）両方に対応。psycopg2のJSONB自動変換を活用し、明示的なjson.loads()を省略",
-        "テスト容易性": "create()とcreate_from_education()ファクトリメソッドでテストデータ生成を容易に。デフォルト値が明示的で、テスト時に必要なフィールドのみ指定可能"
-      },
       "access_count": 0,
       "candidate_count": 0,
       "consolidation_level": 0,
@@ -132,7 +112,8 @@
       "source": "task_execution",
       "created_at": "2026-01-13T10:30:00Z",
       "updated_at": "2026-01-13T10:30:00Z",
-      "last_accessed_at": null
+      "last_accessed_at": null,
+      "learning": "[観点別強度] strength_by_perspective を Dict[str, float] として定義し、観点名をキーとして柔軟に対応。create()ファクトリメソッドで初期値を注入可能にし、エージェント定義との連携を容易にした\n[強度の正確性] candidate_count と access_count を明確に分離したフィールドとして定義。docstringで各フィールドの役割（検索候補 vs 実使用）を明記し、2段階強化の設計意図をコードに埋め込んだ\n[効率性] from_row()でtuple形式（標準cursor）とdict形式（RealDictCursor）両方に対応。psycopg2のJSONB自動変換を活用し、明示的なjson.loads()を省略"
     },
     {
       "id": "mem_core_006",
@@ -149,13 +130,6 @@
         "効率性": 1.0,
         "テスト容易性": 1.0
       },
-      "learnings": {
-        "強度の正確性": "increment_candidate_countはcandidate_count+=1のみでstrengthは変更しない。increment_access_countでaccess_count+=1とstrength+=incrementを同時に実行。SQLレベルで2段階強化の分離を保証し、アプリケーションコードのミスを防止",
-        "観点別強度": "jsonb_setとCOALESCEを組み合わせて該当観点のみを部分更新。(strength_by_perspective->>perspective)::floatで既存値を取得し、存在しない場合は0.0で初期化してincrementを加算。全観点を毎回更新しない効率的な設計",
-        "原子性": "単一のUPDATE文で複数フィールド（strength, access_count, last_accessed_at, updated_at）を同時更新。DatabaseConnectionのコンテキストマネージャーによりトランザクション整合性を保証。RETURNING句で更新後の値を即座に取得",
-        "効率性": "ANY(%s::uuid[])句でN+1問題を回避するバッチ操作を提供。batch_increment_candidate_count, batch_update_strength, batch_archiveにより検索・減衰処理の効率化を実現。VALUES句とUPDATE FROMで複数行の異なる値を一括更新",
-        "テスト容易性": "リポジトリパターンでDB操作を抽象化。DatabaseConnectionを注入可能にすることでテスト用DBへの切り替えが容易。SQL定数をクラス変数として定義し、可読性とメンテナンス性を向上"
-      },
       "access_count": 0,
       "candidate_count": 0,
       "consolidation_level": 0,
@@ -163,7 +137,8 @@
       "source": "task_execution",
       "created_at": "2026-01-13T11:00:00Z",
       "updated_at": "2026-01-13T11:00:00Z",
-      "last_accessed_at": null
+      "last_accessed_at": null,
+      "learning": "[強度の正確性] increment_candidate_countはcandidate_count+=1のみでstrengthは変更しない。increment_access_countでaccess_count+=1とstrength+=incrementを同時に実行。SQLレベルで2段階強化の分離を保証し、アプリケーションコードのミスを防止\n[効率性] ANY(%s::uuid[])句でN+1問題を回避するバッチ操作を提供。batch_increment_candidate_count, batch_update_strength, batch_archiveにより検索・減衰処理の効率化を実現。VALUES句とUPDATE FROMで複数行の異なる値を一括更新\n[原子性] 単一のUPDATE文で複数フィールド（strength, access_count, last_accessed_at, updated_at）を同時更新。DatabaseConnectionのコンテキストマネージャーによりトランザクション整合性を保証。RETURNING句で更新後の値を即座に取得"
     },
     {
       "id": "mem_core_007",
@@ -179,13 +154,6 @@
         "効率性": 1.0,
         "テスト容易性": 1.0
       },
-      "learnings": {
-        "強度の正確性": "mark_as_candidate は batch_increment_candidate_count のみを呼び出し strength を変更しない。mark_as_used は increment_access_count で strength も同時に更新。ビジネスロジック層でも2段階強化の分離を維持",
-        "観点別強度": "mark_as_used の perspective パラメータが指定された場合のみ update_perspective_strength を呼び出す設計。該当観点のみを強化し、全観点を毎回更新しない普遍的原則を遵守",
-        "原子性": "apply_impact では get_by_id → copy_with → update の流れで更新。リポジトリの update は単一 UPDATE 文で原子的だが、mark_as_used では複数のリポジトリ呼び出しが発生。各呼び出しは原子的だが、全体としては複数トランザクションになる点に注意",
-        "効率性": "IMPACT_SCORES 定数で impact_type と設定属性名のマッピングを定義し、getattr で動的に値を取得。新しいインパクトタイプを追加する際は定数と Phase1Config に追加するだけで拡張可能",
-        "テスト容易性": "MemoryRepository と Phase1Config を依存性注入で受け取る設計。モックリポジトリを注入することでDBなしでのユニットテストが可能。get_impact_value ユーティリティメソッドも公開し、テスト時の値検証が容易"
-      },
       "access_count": 0,
       "candidate_count": 0,
       "consolidation_level": 0,
@@ -193,11 +161,87 @@
       "source": "task_execution",
       "created_at": "2026-01-13T11:30:00Z",
       "updated_at": "2026-01-13T11:30:00Z",
-      "last_accessed_at": null
+      "last_accessed_at": null,
+      "learning": "[強度の正確性] mark_as_candidate は batch_increment_candidate_count のみを呼び出し strength を変更しない。mark_as_used は increment_access_count で strength も同時に更新。ビジネスロジック層でも2段階強化の分離を維持\n[原子性] apply_impact では get_by_id → copy_with → update の流れで更新。リポジトリの update は単一 UPDATE 文で原子的だが、mark_as_used では複数のリポジトリ呼び出しが発生。各呼び出しは原子的だが、全体としては複数トランザクションになる点に注意\n[テスト容易性] MemoryRepository と Phase1Config を依存性注入で受け取る設計。モックリポジトリを注入することでDBなしでのユニットテストが可能。get_impact_value ユーティリティメソッドも公開し、テスト時の値検証が容易"
+    },
+    {
+      "id": "mem_core_008",
+      "task_id": "phase2_002",
+      "content": "Phase2Configの実装では、Phase1Configをdataclass継承することで既存パラメータと新規パラメータを統合。仕様書セクション4の定数（ROUTING_SCORE_WEIGHTS, FEEDBACK_SIGNALS等）もモジュールレベルで公開し、ルーティングや評価コンポーネントから参照可能にした。",
+      "scope_level": "project",
+      "scope_domain": null,
+      "scope_project": "llm-persistent-memory",
+      "strength": 1.0,
+      "strength_by_perspective": {
+        "データ整合性": 1.0,
+        "パフォーマンス": 0.5,
+        "エラー耐性": 0.5,
+        "スキーマ設計": 1.2,
+        "トランザクション": 0.3
+      },
+      "access_count": 0,
+      "candidate_count": 0,
+      "consolidation_level": 0,
+      "status": "active",
+      "source": "task_execution",
+      "created_at": "2026-01-15T09:00:00Z",
+      "updated_at": "2026-01-15T09:00:00Z",
+      "last_accessed_at": null,
+      "learning": "[データ整合性] Phase1Configのget_decay_rate(), get_consolidation_level()メソッドがPhase2Configでもそのまま利用可能であることを確認。継承により設定クラス間の整合性が自動的に保たれる\n[スキーマ設計] 設定パラメータをカテゴリ別（入力処理層、オーケストレーター、ルーティング、評価、エージェント管理、進捗管理）に分類し、docstringで用途を明示。将来の拡張時に適切なカテゴリに追加しやすい構造\n[パフォーマンス] 設定クラスの継承はインスタンス化時のオーバーヘッドが最小限。グローバルインスタンス phase2_config を提供することで繰り返しのインスタンス化を回避"
+    },
+    {
+      "id": "mem_core_009",
+      "task_id": "phase2_004",
+      "content": "AgentRegistryの実装では、MemoryRepositoryと同じパターン（SQL定数定義、from_row/to_dict変換、コンテキストマネージャー活用）を採用。capabilities検索には&&演算子（OR検索）と@>演算子（AND検索）を使い分け、GINインデックスを活用した効率的な検索を実現した。",
+      "scope_level": "project",
+      "scope_domain": null,
+      "scope_project": "llm-persistent-memory",
+      "strength": 1.0,
+      "strength_by_perspective": {
+        "データ整合性": 1.2,
+        "パフォーマンス": 1.3,
+        "エラー耐性": 1.0,
+        "スキーマ設計": 1.2,
+        "トランザクション": 1.0
+      },
+      "access_count": 0,
+      "candidate_count": 0,
+      "consolidation_level": 0,
+      "status": "active",
+      "source": "task_execution",
+      "created_at": "2026-01-15T10:30:00Z",
+      "updated_at": "2026-01-15T10:30:00Z",
+      "last_accessed_at": null,
+      "learning": "[パフォーマンス] GINインデックスを活用したcapabilities検索を2種類提供。search_by_capabilities()で&&演算子（OR検索）、search_by_all_capabilities()で@>演算子（AND検索）を実装。配列演算子のインデックス最適化によりO(n)からO(log n)に改善\n[スキーマ設計] MemoryRepositoryのパターンを踏襲し、_COLUMNS, _INSERT_SQL等のSQL定数をクラス変数として定義。Phase2のagent_definitionsテーブルスキーマとの1:1マッピングを維持し、カラム追加時の変更箇所を局所化\n[データ整合性] agent_idをPRIMARY KEYとしてDB側で一意性を保証。from_row()でNone値を空リストに変換し、アプリケーション側でnull安全性を確保。to_dict()でdatetime→isoformat変換を行い、JSON互換性を維持"
+    },
+    {
+      "id": "mem_core_010",
+      "task_id": "edu_001b",
+      "content": "EducationProcessクラスの実装では、教科書のチャンク分割→記憶保存→テスト実行→強化の教育フローを提供。AgentMemory.create_from_education()で初期強度0.5の記憶を作成し、run_test()でmark_as_candidate（Stage 1）による候補マークを実行。EducationResult dataclassで実行結果（章数、記憶数、テスト合否）を集約。",
+      "scope_level": "project",
+      "scope_domain": null,
+      "scope_project": "llm-persistent-memory",
+      "strength": 1.0,
+      "strength_by_perspective": {
+        "強度の正確性": 1.0,
+        "観点別強度": 0.5,
+        "原子性": 0.5,
+        "効率性": 0.8,
+        "テスト容易性": 1.0
+      },
+      "access_count": 0,
+      "candidate_count": 0,
+      "consolidation_level": 0,
+      "status": "active",
+      "source": "task_execution",
+      "created_at": "2026-01-15T23:10:00Z",
+      "updated_at": "2026-01-15T23:10:00Z",
+      "last_accessed_at": null,
+      "learning": null
     }
   ],
   "metadata": {
     "created_at": "2026-01-13T08:00:00Z",
-    "updated_at": "2026-01-13T11:30:00Z"
+    "updated_at": "2026-01-15T23:10:00Z"
   }
 }

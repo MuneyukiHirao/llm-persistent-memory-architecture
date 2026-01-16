@@ -85,6 +85,13 @@ class AgentMemory:
     last_accessed_at: Optional[datetime] = None
     """最後に使用された日時（recency計算用）"""
 
+    # === Spaced Repetition（間隔反復学習） ===
+    next_review_at: Optional[datetime] = None
+    """次回復習予定日時（Spaced Repetition用）"""
+
+    review_count: int = 0
+    """復習回数（Spaced Repetition用、正解回数を追跡）"""
+
     # === インパクト ===
     impact_score: float = 0.0
     """インパクトスコア
@@ -101,10 +108,10 @@ class AgentMemory:
     閾値: [0, 5, 15, 30, 60, 100]
     """
 
-    # === 学び（観点別） ===
-    learnings: Dict[str, str] = field(default_factory=dict)
-    """観点別の学び内容（JSONB）
-    例: {"コスト": "緊急調達で15%コスト増", "納期": "2週間バッファが必要"}
+    # === 学び（例外的なイベントのみ記録） ===
+    learning: Optional[str] = None
+    """学びの内容（TEXT、NULL許容）
+    例外的なイベントのみオプショナルに記録する。
     """
 
     # === 状態 ===
@@ -151,9 +158,13 @@ class AgentMemory:
             "last_accessed_at": (
                 self.last_accessed_at.isoformat() if self.last_accessed_at else None
             ),
+            "next_review_at": (
+                self.next_review_at.isoformat() if self.next_review_at else None
+            ),
+            "review_count": self.review_count,
             "impact_score": self.impact_score,
             "consolidation_level": self.consolidation_level,
-            "learnings": self.learnings,
+            "learning": self.learning,
             "status": self.status,
             "source": self.source,
             "created_at": self.created_at.isoformat(),
@@ -189,7 +200,8 @@ class AgentMemory:
         #            scope_level, scope_domain, scope_project,
         #            strength, strength_by_perspective,
         #            access_count, candidate_count, last_accessed_at,
-        #            impact_score, consolidation_level, learnings,
+        #            next_review_at, review_count,
+        #            impact_score, consolidation_level, learning,
         #            status, source, created_at, updated_at, last_decay_at
         return cls(
             id=row[0] if isinstance(row[0], UUID) else UUID(str(row[0])),
@@ -205,14 +217,16 @@ class AgentMemory:
             access_count=int(row[10]) if row[10] is not None else 0,
             candidate_count=int(row[11]) if row[11] is not None else 0,
             last_accessed_at=row[12],
-            impact_score=float(row[13]) if row[13] is not None else 0.0,
-            consolidation_level=int(row[14]) if row[14] is not None else 0,
-            learnings=row[15] or {},
-            status=row[16] or "active",
-            source=row[17],
-            created_at=row[18] or datetime.now(),
-            updated_at=row[19] or datetime.now(),
-            last_decay_at=row[20],
+            next_review_at=row[13],
+            review_count=int(row[14]) if row[14] is not None else 0,
+            impact_score=float(row[15]) if row[15] is not None else 0.0,
+            consolidation_level=int(row[16]) if row[16] is not None else 0,
+            learning=row[17],
+            status=row[18] or "active",
+            source=row[19],
+            created_at=row[20] or datetime.now(),
+            updated_at=row[21] or datetime.now(),
+            last_decay_at=row[22],
         )
 
     @classmethod
@@ -242,6 +256,10 @@ class AgentMemory:
                 else 0
             ),
             last_accessed_at=row.get("last_accessed_at"),
+            next_review_at=row.get("next_review_at"),
+            review_count=(
+                int(row["review_count"]) if row.get("review_count") is not None else 0
+            ),
             impact_score=(
                 float(row["impact_score"])
                 if row.get("impact_score") is not None
@@ -252,7 +270,7 @@ class AgentMemory:
                 if row.get("consolidation_level") is not None
                 else 0
             ),
-            learnings=row.get("learnings") or {},
+            learning=row.get("learning"),
             status=row.get("status") or "active",
             source=row.get("source"),
             created_at=row.get("created_at") or datetime.now(),
@@ -273,7 +291,7 @@ class AgentMemory:
         scope_project: Optional[str] = None,
         strength: float = 1.0,
         strength_by_perspective: Optional[Dict[str, float]] = None,
-        learnings: Optional[Dict[str, str]] = None,
+        learning: Optional[str] = None,
         source: Optional[str] = None,
     ) -> AgentMemory:
         """デフォルト値を設定してインスタンスを生成するファクトリメソッド
@@ -288,7 +306,7 @@ class AgentMemory:
             scope_project: プロジェクトID
             strength: 初期強度（デフォルト: 1.0）
             strength_by_perspective: 観点別強度の初期値
-            learnings: 観点別の学び内容
+            learning: 学びの内容（例外的なイベントのみ記録、NULL許容）
             source: 記憶のソース (education/task/manual)
 
         Returns:
@@ -319,9 +337,11 @@ class AgentMemory:
             access_count=0,
             candidate_count=0,
             last_accessed_at=None,
+            next_review_at=None,
+            review_count=0,
             impact_score=0.0,
             consolidation_level=0,
-            learnings=learnings or {},
+            learning=learning,
             status="active",
             source=source,
             created_at=now,
@@ -341,7 +361,7 @@ class AgentMemory:
         scope_domain: Optional[str] = None,
         scope_project: Optional[str] = None,
         strength_by_perspective: Optional[Dict[str, float]] = None,
-        learnings: Optional[Dict[str, str]] = None,
+        learning: Optional[str] = None,
     ) -> AgentMemory:
         """教育プロセスからの記憶を生成するファクトリメソッド
 
@@ -370,7 +390,7 @@ class AgentMemory:
             scope_project=scope_project,
             strength=0.5,  # 教育プロセスの初期強度
             strength_by_perspective=strength_by_perspective,
-            learnings=learnings,
+            learning=learning,
             source="education",
         )
 
@@ -398,6 +418,7 @@ class AgentMemory:
         data["created_at"] = self.created_at
         data["updated_at"] = self.updated_at
         data["last_accessed_at"] = self.last_accessed_at
+        data["next_review_at"] = self.next_review_at
         data["last_decay_at"] = self.last_decay_at
 
         # 引数で上書き
@@ -417,9 +438,11 @@ class AgentMemory:
             access_count=data["access_count"],
             candidate_count=data["candidate_count"],
             last_accessed_at=data["last_accessed_at"],
+            next_review_at=data["next_review_at"],
+            review_count=data["review_count"],
             impact_score=data["impact_score"],
             consolidation_level=data["consolidation_level"],
-            learnings=data["learnings"],
+            learning=data["learning"],
             status=data["status"],
             source=data["source"],
             created_at=data["created_at"],

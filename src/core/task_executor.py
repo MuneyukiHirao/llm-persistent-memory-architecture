@@ -443,25 +443,29 @@ class TaskExecutor:
         learning: str,
         perspective: Optional[str] = None,
     ) -> UUID:
-        """新しい学びを記録
+        """例外的なイベントを学びとして記録
 
-        タスク実行で得られた学びを新規メモリとして保存する。
+        エラー解決、予想外の挙動発見、効率的な方法発見などの
+        例外的なイベントのみを新規メモリとして保存する。
+
+        注意: 「テスト36件成功」「0.1秒で完了」のような報告や、
+        汎用的な自動生成メッセージは記録しない。
+        呼び出し側が明示的に学びを指定した場合のみ記録する。
 
         処理フロー:
             1. content の空チェック
             2. AzureEmbeddingClient でエンベディングを生成
-            3. learnings 構造を作成（{perspective: learning} または {"general": learning}）
-            4. strength_by_perspective の初期化（perspective 指定時）
-            5. AgentMemory.create() で新しいメモリを作成（source = "task"）
-            6. MemoryRepository.create() でDBに保存
-            7. 作成されたメモリのUUIDを返却
+            3. strength_by_perspective の初期化（perspective 指定時）
+            4. AgentMemory.create() で新しいメモリを作成（source = "task"）
+            5. MemoryRepository.create() でDBに保存
+            6. 作成されたメモリのUUIDを返却
 
         Args:
             agent_id: エージェントID
             content: 学びの内容（メモリのメインコンテンツ）
-            learning: 観点別の学び内容（文字列）
-            perspective: 観点名（指定時は {perspective: learning}、
-                        未指定時は {"general": learning}）
+            learning: 学びの詳細テキスト（単純なTEXT）
+            perspective: 観点名（強度管理で使用、指定時は
+                        strength_by_perspective[perspective] = 1.0）
 
         Returns:
             作成されたメモリの UUID
@@ -488,14 +492,6 @@ class TaskExecutor:
         # VectorSearch が保持している embedding_client を使用
         embedding = self.vector_search.embedding_client.get_embedding(content)
 
-        # learnings 構造を作成
-        # perspective 指定時は {perspective: learning}、未指定時は {"general": learning}
-        learnings_dict: Dict[str, str] = {}
-        if perspective:
-            learnings_dict[perspective] = learning
-        else:
-            learnings_dict["general"] = learning
-
         # strength_by_perspective の初期化
         # perspective 指定時はその観点を 1.0 で初期化
         strength_by_perspective: Dict[str, float] = {}
@@ -509,7 +505,7 @@ class TaskExecutor:
             embedding=embedding,
             strength=1.0,  # 初期強度
             strength_by_perspective=strength_by_perspective,
-            learnings=learnings_dict,
+            learning=learning,  # 単純なTEXT
             source="task",  # タスク実行で得た学び
         )
 
@@ -545,8 +541,15 @@ class TaskExecutor:
             2. task_func() を実行（検索結果を引数として渡す）
             3. identify_used_memories() で使用判定
             4. reinforce_used_memories() で使用強化
-            5. extract_learning=True または learning_content 指定時は学び記録
+            5. learning_content と learning_text が明示的に指定された場合のみ学び記録
             6. TaskExecutionResult を返却
+
+        学び記録について:
+            学びは「例外的なイベント」のみ記録する。
+            - エラー解決、予想外の挙動発見、効率的な方法発見など
+            - 「テスト成功」「処理完了」のような報告は記録しない
+            - 汎用的な自動生成メッセージは記録しない
+            呼び出し側が learning_content と learning_text を明示的に指定した場合のみ記録。
 
         Args:
             query: 検索クエリ
@@ -554,7 +557,7 @@ class TaskExecutor:
             task_func: 実行するタスク関数
                       シグネチャ: (memories: List[ScoredMemory]) -> Any
             perspective: 観点（検索・強化に影響）
-            extract_learning: True の場合、タスク結果から学びを抽出して記録
+            extract_learning: [deprecated] 自動抽出は行わない、明示的指定のみ有効
             learning_content: 記録する学びの content（明示的に指定する場合）
             learning_text: 記録する学びの learning テキスト（明示的に指定する場合）
 
@@ -660,43 +663,33 @@ class TaskExecutor:
             logger.info("Step 4 スキップ: 使用メモリなし")
 
         # ========================================
-        # Step 5: 学び記録（オプション）
+        # Step 5: 学び記録（例外的なイベントのみ）
         # ========================================
-        should_record_learning = extract_learning or learning_content
+        # 学びは「例外的なイベント」のみ記録
+        # - エラー解決、予想外の挙動発見、効率的な方法発見など
+        # - 「テスト成功」「処理完了」のような報告は記録しない
+        # - learning_content と learning_text が明示的に指定された場合のみ記録
+        # - extract_learning は deprecated（自動抽出は行わない）
+        should_record_learning = learning_content and learning_text
 
         if should_record_learning:
             try:
-                # 学びの content を決定
-                # 明示的に指定されていればそれを使用、なければ task_result から生成
-                content = learning_content
-                if not content and extract_learning:
-                    # task_result を文字列化して content として使用
-                    content = self._extract_learning_content(task_result, query)
-
-                if content:
-                    # learning テキストを決定
-                    learning = learning_text
-                    if not learning and extract_learning:
-                        learning = f"タスク実行から得た学び: {query}"
-
-                    recorded_memory_id = self.record_learning(
-                        agent_id=agent_id,
-                        content=content,
-                        learning=learning or "タスク実行から得た学び",
-                        perspective=perspective,
-                    )
-                    logger.info(
-                        f"Step 5 完了: 学び記録 memory_id={recorded_memory_id}"
-                    )
-                else:
-                    logger.info("Step 5 スキップ: 学びの content が空")
+                recorded_memory_id = self.record_learning(
+                    agent_id=agent_id,
+                    content=learning_content,
+                    learning=learning_text,
+                    perspective=perspective,
+                )
+                logger.info(
+                    f"Step 5 完了: 学び記録 memory_id={recorded_memory_id}"
+                )
             except Exception as e:
                 # 学び記録失敗は記録して継続
                 error_msg = f"学び記録でエラー: {e}"
                 logger.warning(f"Step 5 失敗: {error_msg}")
                 errors.append(error_msg)
         else:
-            logger.info("Step 5 スキップ: 学び記録なし")
+            logger.info("Step 5 スキップ: 学び記録なし（明示的な指定なし）")
 
         # ========================================
         # Step 6: 結果返却

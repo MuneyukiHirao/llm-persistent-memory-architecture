@@ -10,6 +10,15 @@ psycopg2-binary>=2.9.0
 # LLM (タスク実行・学び抽出)
 anthropic>=0.39.0
 
+# YAML Parsing (教育プロセス教科書)
+pyyaml>=6.0
+
+# Neural Scorer (Phase 3)
+torch>=2.0.0
+
+# A/B Testing Statistics (Phase 3)
+scipy>=1.11.0
+
 # Development / Testing
 pytest>=7.0.0
 pytest-asyncio>=0.21.0

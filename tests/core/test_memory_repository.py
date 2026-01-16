@@ -91,7 +91,7 @@ class TestCreate:
         )
 
     def _make_db_row(self, memory: AgentMemory) -> tuple:
-        """AgentMemory からDB行データを生成"""
+        """AgentMemory からDB行データを生成（23カラム）"""
         return (
             memory.id,
             memory.agent_id,
@@ -106,9 +106,11 @@ class TestCreate:
             memory.access_count,
             memory.candidate_count,
             memory.last_accessed_at,
+            memory.next_review_at,
+            memory.review_count,
             memory.impact_score,
             memory.consolidation_level,
-            memory.learnings,
+            memory.learning,
             memory.status,
             memory.source,
             memory.created_at,
@@ -171,16 +173,16 @@ class TestCreate:
         call_args = mock_cursor.execute.call_args[0][1]
         assert call_args[3] is None
 
-    def test_create_memory_with_jsonb_fields(
+    def test_create_memory_with_jsonb_and_text_fields(
         self, repo: MemoryRepository, mock_cursor: MagicMock
     ):
-        """JSONB フィールド（strength_by_perspective, learnings）が正しくシリアライズされる"""
+        """JSONB フィールド（strength_by_perspective）と TEXT フィールド（learning）が正しく処理される"""
         # Arrange
         memory = AgentMemory.create(
             agent_id="test_agent",
             content="テスト",
             strength_by_perspective={"コスト": 1.2, "納期": 0.8},
-            learnings={"コスト": "緊急調達で15%コスト増"},
+            learning="緊急調達で15%コスト増",
         )
         mock_cursor.fetchone.return_value = self._make_db_row(memory)
 
@@ -218,7 +220,7 @@ class TestGetById:
         return MemoryRepository(mock_db, config)
 
     def _make_db_row(self, memory_id: UUID) -> tuple:
-        """テスト用DB行を作成"""
+        """テスト用DB行を作成（23カラム）"""
         now = datetime.now()
         return (
             memory_id,
@@ -234,9 +236,11 @@ class TestGetById:
             0,     # access_count
             0,     # candidate_count
             None,  # last_accessed_at
+            None,  # next_review_at
+            0,     # review_count
             0.0,   # impact_score
             0,     # consolidation_level
-            {},    # learnings
+            None,  # learning
             "active",
             None,  # source
             now,
@@ -300,6 +304,7 @@ class TestGetByAgentId:
         return MemoryRepository(mock_db, config)
 
     def _make_db_row(self, memory_id: UUID, agent_id: str = "test_agent") -> tuple:
+        """テスト用DB行を作成（23カラム）"""
         now = datetime.now()
         return (
             memory_id,
@@ -315,9 +320,11 @@ class TestGetByAgentId:
             0,
             0,
             None,
+            None,  # next_review_at
+            0,     # review_count
             0.0,
             0,
-            {},
+            None,
             "active",
             None,
             now,
@@ -398,6 +405,7 @@ class TestUpdate:
         return MemoryRepository(mock_db, config)
 
     def _make_db_row(self, memory: AgentMemory) -> tuple:
+        """テスト用DB行を作成（23カラム）"""
         return (
             memory.id,
             memory.agent_id,
@@ -412,9 +420,11 @@ class TestUpdate:
             memory.access_count,
             memory.candidate_count,
             memory.last_accessed_at,
+            memory.next_review_at,
+            memory.review_count,
             memory.impact_score,
             memory.consolidation_level,
-            memory.learnings,
+            memory.learning,
             memory.status,
             memory.source,
             memory.created_at,
@@ -845,6 +855,7 @@ class TestGetMemoriesForDecay:
         return MemoryRepository(mock_db, config)
 
     def _make_db_row(self, memory_id: UUID, strength: float) -> tuple:
+        """テスト用DB行を作成（23カラム）"""
         now = datetime.now()
         return (
             memory_id,
@@ -860,9 +871,11 @@ class TestGetMemoriesForDecay:
             0,
             0,
             None,
+            None,  # next_review_at
+            0,     # review_count
             0.0,
             0,
-            {},
+            None,
             "active",
             None,
             now,
@@ -983,6 +996,7 @@ class TestGetLowestStrengthMemories:
         return MemoryRepository(mock_db, config)
 
     def _make_db_row(self, memory_id: UUID, strength: float) -> tuple:
+        """テスト用DB行を作成（23カラム）"""
         now = datetime.now()
         return (
             memory_id,
@@ -998,9 +1012,11 @@ class TestGetLowestStrengthMemories:
             0,
             0,
             None,
+            None,  # next_review_at
+            0,     # review_count
             0.0,
             0,
-            {},
+            None,
             "active",
             None,
             now,
@@ -1121,6 +1137,7 @@ class TestEdgeCases:
             content="テスト",
             embedding=embedding,
         )
+        # 23カラム: next_review_at, review_count追加
         mock_cursor.fetchone.return_value = (
             memory.id,
             memory.agent_id,
@@ -1135,9 +1152,11 @@ class TestEdgeCases:
             0,
             0,
             None,
+            None,  # next_review_at
+            0,     # review_count
             0.0,
             0,
-            {},
+            None,
             "active",
             None,
             datetime.now(),
@@ -1161,6 +1180,7 @@ class TestEdgeCases:
             agent_id="test_agent",
             content=content,
         )
+        # 23カラム: next_review_at, review_count追加
         mock_cursor.fetchone.return_value = (
             memory.id,
             memory.agent_id,
@@ -1175,9 +1195,11 @@ class TestEdgeCases:
             0,
             0,
             None,
+            None,  # next_review_at
+            0,     # review_count
             0.0,
             0,
-            {},
+            None,
             "active",
             None,
             datetime.now(),

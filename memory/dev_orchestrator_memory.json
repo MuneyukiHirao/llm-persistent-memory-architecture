@@ -15,10 +15,6 @@
         "進捗評価": 1.3,
         "リスク検知": 1.0
       },
-      "learnings": {
-        "ユーザー意図": "進捗の可視化を重視。定期的な報告がないと不安を感じる可能性",
-        "進捗評価": "1時間ごとに進捗状態ファイルを更新し、ユーザーに報告する"
-      },
       "access_count": 1,
       "candidate_count": 1,
       "consolidation_level": 0,
@@ -26,7 +22,8 @@
       "source": "user_dialogue",
       "created_at": "2025-01-13T12:00:00Z",
       "updated_at": "2026-01-13T16:20:00Z",
-      "last_accessed_at": "2026-01-13T16:20:00Z"
+      "last_accessed_at": "2026-01-13T16:20:00Z",
+      "learning": "[ユーザー意図] 進捗の可視化を重視。定期的な報告がないと不安を感じる可能性\n[進捗評価] 1時間ごとに進捗状態ファイルを更新し、ユーザーに報告する"
     },
     {
       "id": "mem_orch_002",
@@ -42,10 +39,6 @@
         "進捗評価": 1.0,
         "リスク検知": 1.0
       },
-      "learnings": {
-        "ユーザー意図": "環境の分離を重視している",
-        "タスク依存関係": "core_004でvenv作成済み。pip installはvenv内で実行"
-      },
       "access_count": 2,
       "candidate_count": 2,
       "consolidation_level": 0,
@@ -53,7 +46,8 @@
       "source": "user_dialogue",
       "created_at": "2025-01-13T12:00:00Z",
       "updated_at": "2026-01-13T16:20:00Z",
-      "last_accessed_at": "2026-01-13T16:20:00Z"
+      "last_accessed_at": "2026-01-13T16:20:00Z",
+      "learning": "[タスク依存関係] core_004でvenv作成済み。pip installはvenv内で実行\n[ユーザー意図] 環境の分離を重視している"
     },
     {
       "id": "mem_orch_003",
@@ -69,11 +63,6 @@
         "進捗評価": 1.0,
         "リスク検知": 1.2
       },
-      "learnings": {
-        "エージェント適性": "search_engine_agentがAzureEmbeddingClientを実装済み（search_001）",
-        "タスク依存関係": "環境変数: AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_API_KEY, AZURE_OPENAI_EMBEDDING_DEPLOYMENT",
-        "リスク検知": "api_version指定が必須。openai>=1.0.0のAzureOpenAIクラスで対応済み"
-      },
       "access_count": 3,
       "candidate_count": 3,
       "consolidation_level": 0,
@@ -81,7 +70,8 @@
       "source": "user_dialogue",
       "created_at": "2025-01-13T12:00:00Z",
       "updated_at": "2026-01-13T16:20:00Z",
-      "last_accessed_at": "2026-01-13T16:20:00Z"
+      "last_accessed_at": "2026-01-13T16:20:00Z",
+      "learning": "[タスク依存関係] 環境変数: AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_API_KEY, AZURE_OPENAI_EMBEDDING_DEPLOYMENT\n[エージェント適性] search_engine_agentがAzureEmbeddingClientを実装済み（search_001）\n[リスク検知] api_version指定が必須。openai>=1.0.0のAzureOpenAIクラスで対応済み"
     },
     {
       "id": "mem_orch_004",
@@ -97,10 +87,6 @@
         "進捗評価": 1.0,
         "リスク検知": 1.0
       },
-      "learnings": {
-        "タスク依存関係": "Docker Composeはプラグイン形式（docker compose）で動作する",
-        "エージェント適性": "インフラ構築エージェントはこの環境を前提に構築できる"
-      },
       "access_count": 0,
       "candidate_count": 0,
       "consolidation_level": 0,
@@ -108,7 +94,8 @@
       "source": "environment_check",
       "created_at": "2025-01-13T12:00:00Z",
       "updated_at": "2025-01-13T12:00:00Z",
-      "last_accessed_at": null
+      "last_accessed_at": null,
+      "learning": "[タスク依存関係] Docker Composeはプラグイン形式（docker compose）で動作する\n[エージェント適性] インフラ構築エージェントはこの環境を前提に構築できる"
     },
     {
       "id": "mem_orch_005",
@@ -124,10 +111,6 @@
         "進捗評価": 1.0,
         "リスク検知": 1.0
       },
-      "learnings": {
-        "ユーザー意図": "開発用ファイルはプロジェクトルート直下ではなく、専用フォルダに整理することを好む",
-        "タスク依存関係": "インフラ構築エージェントへのファイルパス指示は docker/ を基準にする"
-      },
       "access_count": 0,
       "candidate_count": 0,
       "consolidation_level": 0,
@@ -135,7 +118,8 @@
       "source": "user_dialogue",
       "created_at": "2026-01-13T14:05:00Z",
       "updated_at": "2026-01-13T14:05:00Z",
-      "last_accessed_at": null
+      "last_accessed_at": null,
+      "learning": "[ユーザー意図] 開発用ファイルはプロジェクトルート直下ではなく、専用フォルダに整理することを好む\n[タスク依存関係] インフラ構築エージェントへのファイルパス指示は docker/ を基準にする"
     },
     {
       "id": "mem_orch_006",
@@ -151,10 +135,6 @@
         "進捗評価": 1.0,
         "リスク検知": 1.1
       },
-      "learnings": {
-        "タスク依存関係": "docker compose コマンドには常に --env-file ../.env を付ける",
-        "リスク検知": "env-file を忘れると環境変数が解決されず起動失敗する"
-      },
       "access_count": 1,
       "candidate_count": 1,
       "consolidation_level": 0,
@@ -162,7 +142,8 @@
       "source": "task_execution",
       "created_at": "2026-01-13T14:15:00Z",
       "updated_at": "2026-01-13T14:15:00Z",
-      "last_accessed_at": "2026-01-13T14:15:00Z"
+      "last_accessed_at": "2026-01-13T14:15:00Z",
+      "learning": "[タスク依存関係] docker compose コマンドには常に --env-file ../.env を付ける\n[リスク検知] env-file を忘れると環境変数が解決されず起動失敗する"
     },
     {
       "id": "mem_orch_007",
@@ -178,11 +159,6 @@
         "進捗評価": 1.2,
         "リスク検知": 1.0
       },
-      "learnings": {
-        "エージェント適性": "大きなタスクは細分化して依頼。例: core_001-007で7段階に分割",
-        "タスク依存関係": "依存関係がある場合は順序を明示。例: db/connection.py → models/memory.py → memory_repository.py",
-        "進捗評価": "各タスク完了時にprogress_state.jsonを更新することで進捗が可視化される"
-      },
       "access_count": 7,
       "candidate_count": 7,
       "consolidation_level": 1,
@@ -190,7 +166,8 @@
       "source": "task_execution",
       "created_at": "2026-01-13T15:00:00Z",
       "updated_at": "2026-01-13T16:20:00Z",
-      "last_accessed_at": "2026-01-13T16:20:00Z"
+      "last_accessed_at": "2026-01-13T16:20:00Z",
+      "learning": "[タスク依存関係] 依存関係がある場合は順序を明示。例: db/connection.py → models/memory.py → memory_repository.py\n[進捗評価] 各タスク完了時にprogress_state.jsonを更新することで進捗が可視化される\n[エージェント適性] 大きなタスクは細分化して依頼。例: core_001-007で7段階に分割"
     },
     {
       "id": "mem_orch_008",
@@ -206,11 +183,6 @@
         "進捗評価": 1.0,
         "リスク検知": 1.1
       },
-      "learnings": {
-        "エージェント適性": "タスクテンプレートに「参照」「依存モジュール」「実装要件」を含める",
-        "タスク依存関係": "既存実装済みモジュールを明示することで、エージェントがインポートできる",
-        "リスク検知": "曖昧な指示は質問(question)を招くので、具体的に記述"
-      },
       "access_count": 10,
       "candidate_count": 10,
       "consolidation_level": 1,
@@ -218,7 +190,8 @@
       "source": "task_execution",
       "created_at": "2026-01-13T15:00:00Z",
       "updated_at": "2026-01-13T16:20:00Z",
-      "last_accessed_at": "2026-01-13T16:20:00Z"
+      "last_accessed_at": "2026-01-13T16:20:00Z",
+      "learning": "[タスク依存関係] 既存実装済みモジュールを明示することで、エージェントがインポートできる\n[エージェント適性] タスクテンプレートに「参照」「依存モジュール」「実装要件」を含める\n[リスク検知] 曖昧な指示は質問(question)を招くので、具体的に記述"
     },
     {
       "id": "mem_orch_009",
@@ -234,10 +207,6 @@
         "進捗評価": 1.5,
         "リスク検知": 1.0
       },
-      "learnings": {
-        "進捗評価": "完了: Docker環境構築、スキーマ作成、コア機能実装（7タスク）、検索エンジン実装（3タスク）",
-        "タスク依存関係": "残り: 睡眠フェーズ実装、タスク実行フロー、検証・チューニング"
-      },
       "access_count": 2,
       "candidate_count": 2,
       "consolidation_level": 0,
@@ -245,7 +214,8 @@
       "source": "progress_tracking",
       "created_at": "2026-01-13T16:20:00Z",
       "updated_at": "2026-01-13T16:35:00Z",
-      "last_accessed_at": "2026-01-13T16:35:00Z"
+      "last_accessed_at": "2026-01-13T16:35:00Z",
+      "learning": "[タスク依存関係] 残り: 睡眠フェーズ実装、タスク実行フロー、検証・チューニング"
     },
     {
       "id": "mem_orch_010",
@@ -261,10 +231,6 @@
         "進捗評価": 1.0,
         "リスク検知": 1.0
       },
-      "learnings": {
-        "エージェント適性": "新規タスク依頼時は既存ディレクトリ構造を前提にできる",
-        "タスク依存関係": "主要モジュール: Phase1Config, DatabaseConnection, AgentMemory, MemoryRepository, StrengthManager, AzureEmbeddingClient, VectorSearch"
-      },
       "access_count": 1,
       "candidate_count": 1,
       "consolidation_level": 0,
@@ -272,7 +238,8 @@
       "source": "task_execution",
       "created_at": "2026-01-13T16:20:00Z",
       "updated_at": "2026-01-13T16:20:00Z",
-      "last_accessed_at": "2026-01-13T16:20:00Z"
+      "last_accessed_at": "2026-01-13T16:20:00Z",
+      "learning": "[タスク依存関係] 主要モジュール: Phase1Config, DatabaseConnection, AgentMemory, MemoryRepository, StrengthManager, AzureEmbeddingClient, VectorSearch\n[エージェント適性] 新規タスク依頼時は既存ディレクトリ構造を前提にできる"
     },
     {
       "id": "mem_orch_011",
@@ -288,10 +255,6 @@
         "進捗評価": 1.0,
         "リスク検知": 1.1
       },
-      "learnings": {
-        "エージェント適性": "memory_core_agentのstrength_manager.pyはテスト未実施だが、verification_agentで後でカバー",
-        "リスク検知": "テストなしで進めると手戻りリスクあるが、MVP目的では許容可能"
-      },
       "access_count": 1,
       "candidate_count": 1,
       "consolidation_level": 0,
@@ -299,9 +262,9 @@
       "source": "task_execution",
       "created_at": "2026-01-13T16:00:00Z",
       "updated_at": "2026-01-13T16:20:00Z",
-      "last_accessed_at": "2026-01-13T16:20:00Z"
-    }
-    ,
+      "last_accessed_at": "2026-01-13T16:20:00Z",
+      "learning": "[エージェント適性] memory_core_agentのstrength_manager.pyはテスト未実施だが、verification_agentで後でカバー\n[リスク検知] テストなしで進めると手戻りリスクあるが、MVP目的では許容可能"
+    },
     {
       "id": "mem_orch_012",
       "content": "Phase 1 検証結果: 132テスト全成功。ただし下位モジュールのユニットテスト5件が未実装（test_connection, test_memory, test_memory_repository, test_strength_manager, test_vector_search）",
@@ -316,10 +279,6 @@
         "進捗評価": 1.5,
         "リスク検知": 1.3
       },
-      "learnings": {
-        "進捗評価": "上位モジュールのテストが網羅的で、実用上は問題なし。MVPとしては許容可能",
-        "リスク検知": "下位モジュールの単体テスト不足は、将来のリファクタリング時にリスクとなる可能性あり"
-      },
       "access_count": 0,
       "candidate_count": 0,
       "consolidation_level": 0,
@@ -327,9 +286,9 @@
       "source": "verification_result",
       "created_at": "2026-01-13T23:10:00Z",
       "updated_at": "2026-01-13T23:10:00Z",
-      "last_accessed_at": null
-    }
-    ,
+      "last_accessed_at": null,
+      "learning": "[リスク検知] 下位モジュールの単体テスト不足は、将来のリファクタリング時にリスクとなる可能性あり\n[進捗評価] 上位モジュールのテストが網羅的で、実用上は問題なし。MVPとしては許容可能"
+    },
     {
       "id": "mem_orch_013",
       "content": "Phase 1 MVP完了: 全341テスト成功。Docker環境構築→スキーマ作成→コア機能→検索エンジン→睡眠フェーズ→タスク実行フロー→検証チューニングの7フェーズ完了",
@@ -344,10 +303,6 @@
         "進捗評価": 1.5,
         "リスク検知": 1.0
       },
-      "learnings": {
-        "ユーザー意図": "MVPとして必要な全機能を実装完了。テストカバレッジも十分",
-        "進捗評価": "テスト追加: test_connection(36), test_memory(47), test_memory_repository(36), test_strength_manager(52), test_vector_search(38) = 209件追加"
-      },
       "access_count": 0,
       "candidate_count": 0,
       "consolidation_level": 0,
@@ -355,14 +310,183 @@
       "source": "milestone_completion",
       "created_at": "2026-01-14T00:00:00Z",
       "updated_at": "2026-01-14T00:00:00Z",
-      "last_accessed_at": null
+      "last_accessed_at": null,
+      "learning": "[進捗評価] テスト追加: test_connection(36), test_memory(47), test_memory_repository(36), test_strength_manager(52), test_vector_search(38) = 209件追加\n[ユーザー意図] MVPとして必要な全機能を実装完了。テストカバレッジも十分"
+    },
+    {
+      "id": "mem_orch_014",
+      "content": "Phase 1「個性」形成検証完了: 強度管理と減衰が個性を生む → YES。2段階強化でノイズを除去、使用頻度の高い情報は定着、未使用は減衰",
+      "scope_level": "universal",
+      "scope_domain": null,
+      "scope_project": null,
+      "strength": 1.5,
+      "strength_by_perspective": {
+        "ユーザー意図": 1.0,
+        "エージェント適性": 1.2,
+        "タスク依存関係": 1.0,
+        "進捗評価": 1.5,
+        "リスク検知": 1.0
+      },
+      "access_count": 0,
+      "candidate_count": 0,
+      "consolidation_level": 0,
+      "status": "active",
+      "source": "verification_result",
+      "created_at": "2026-01-13T14:00:00Z",
+      "updated_at": "2026-01-13T14:00:00Z",
+      "last_accessed_at": null,
+      "learning": "[エージェント適性] verification_agentは検証・メトリクス観測タスクに適している"
+    },
+    {
+      "id": "mem_orch_015",
+      "content": "Phase 2 準備開始: オーケストレーター + 複数エージェント間ルーティング + 入力処理層を実装予定。優先順位はテストのしやすさで決定",
+      "scope_level": "project",
+      "scope_domain": null,
+      "scope_project": "llm-persistent-memory-phase2",
+      "strength": 1.0,
+      "strength_by_perspective": {
+        "ユーザー意図": 1.3,
+        "エージェント適性": 1.0,
+        "タスク依存関係": 1.2,
+        "進捗評価": 1.0,
+        "リスク検知": 1.0
+      },
+      "access_count": 0,
+      "candidate_count": 0,
+      "consolidation_level": 0,
+      "status": "active",
+      "source": "user_dialogue",
+      "created_at": "2026-01-13T14:00:00Z",
+      "updated_at": "2026-01-13T14:00:00Z",
+      "last_accessed_at": null,
+      "learning": "[ユーザー意図] ユーザーは仕様書作成から開始し、テストしやすさで優先順位を決めることを希望\n[タスク依存関係] Phase 1のメモリシステムを基盤としてPhase 2を構築"
+    },
+    {
+      "id": "mem_orch_016",
+      "content": "Phase 2 完了: M1-M7全マイルストーン達成。Router, Evaluator, Orchestrator, ProgressManager, InputProcessor + E2E統合テスト",
+      "scope_level": "project",
+      "scope_domain": null,
+      "scope_project": "llm-persistent-memory-phase2",
+      "strength": 1.5,
+      "strength_by_perspective": {
+        "ユーザー意図": 1.0,
+        "エージェント適性": 1.3,
+        "タスク依存関係": 1.2,
+        "進捗評価": 1.5,
+        "リスク検知": 1.0
+      },
+      "access_count": 0,
+      "candidate_count": 0,
+      "consolidation_level": 0,
+      "status": "active",
+      "source": "milestone_completion",
+      "created_at": "2026-01-15T15:00:00Z",
+      "updated_at": "2026-01-15T15:00:00Z",
+      "last_accessed_at": null,
+      "learning": "[進捗評価] phase2_002-013の12タスク完了。src/orchestrator/, src/input_processing/, src/agents/, tests/integration/\n[タスク依存関係] Phase 1 TaskExecutorを再利用し、オーケストレーター自身も外部メモリを持つ統一設計"
+    },
+    {
+      "id": "mem_orch_017",
+      "content": "progress_state.json 更新漏れに注意: 専門エージェントの報告を受けたら必ずoverall.current_phase, task_tree, historyを同時に更新すること",
+      "scope_level": "domain",
+      "scope_domain": "llm-agent-orchestration",
+      "scope_project": null,
+      "strength": 1.4,
+      "strength_by_perspective": {
+        "ユーザー意図": 1.0,
+        "エージェント適性": 1.0,
+        "タスク依存関係": 1.0,
+        "進捗評価": 1.5,
+        "リスク検知": 1.4
+      },
+      "access_count": 1,
+      "candidate_count": 1,
+      "consolidation_level": 0,
+      "status": "active",
+      "source": "error_correction",
+      "created_at": "2026-01-15T15:00:00Z",
+      "updated_at": "2026-01-15T15:00:00Z",
+      "last_accessed_at": "2026-01-15T15:00:00Z",
+      "learning": "[進捗評価] M5-M7完了後にprogress_state.jsonが更新されておらず、状況認識に誤りが生じた\n[リスク検知] 進捗ファイルの更新漏れは次のフェーズ計画時に混乱を招く"
+    },
+    {
+      "id": "mem_orch_018",
+      "content": "Phase 3 全完了: M1-M7全マイルストーン達成。スケーラビリティと実運用（負荷分散 + 監視 + 最適化）",
+      "scope_level": "project",
+      "scope_domain": null,
+      "scope_project": "llm-persistent-memory-phase3",
+      "strength": 1.5,
+      "strength_by_perspective": {
+        "ユーザー意図": 1.0,
+        "エージェント適性": 1.3,
+        "タスク依存関係": 1.2,
+        "進捗評価": 1.5,
+        "リスク検知": 1.0
+      },
+      "access_count": 0,
+      "candidate_count": 0,
+      "consolidation_level": 0,
+      "status": "active",
+      "source": "milestone_completion",
+      "created_at": "2026-01-16T02:30:00Z",
+      "updated_at": "2026-01-16T02:30:00Z",
+      "last_accessed_at": null,
+      "learning": "[進捗評価] phase3_002-012の15タスク完了。Phase3Config, MetricsCollector, TaskQueue, LoadBalancer, WebSocketServer, FeatureExtractor, TrainingDataCollector, NeuralScorer, MultiOrchestratorCoordinator, ExperimentManager\n[タスク依存関係] PyTorch, scipy追加。DBベースのロック（Redis未使用）。numpy型のPython標準型変換が重要"
+    },
+    {
+      "id": "mem_orch_019",
+      "content": "Phase 4 全完了: 学びシステム改善（learnings→learning変換）+ 教育プロセス（TextbookLoader, EducationProcess, SpacedRepetitionScheduler）",
+      "scope_level": "project",
+      "scope_domain": null,
+      "scope_project": "llm-persistent-memory-phase4",
+      "strength": 1.5,
+      "strength_by_perspective": {
+        "ユーザー意図": 1.0,
+        "エージェント適性": 1.3,
+        "タスク依存関係": 1.2,
+        "進捗評価": 1.5,
+        "リスク検知": 1.0
+      },
+      "access_count": 0,
+      "candidate_count": 0,
+      "consolidation_level": 0,
+      "status": "active",
+      "source": "milestone_completion",
+      "created_at": "2026-01-16T15:00:00Z",
+      "updated_at": "2026-01-16T15:00:00Z",
+      "last_accessed_at": null,
+      "learning": "[進捗評価] 学びシステム改善: learnings JSONB→learning TEXT変換、例外的イベントのみ記録する設計。教育プロセス: Textbook/Chapter/Quiz dataclass、EducationProcess（チャンク分割・クイズ・2段階強化）、SpacedRepetitionScheduler（間隔反復学習）\n[タスク依存関係] pyyaml追加。schema.sql更新（next_review_at, review_count）。マイグレーション002要手動実行"
+    },
+    {
+      "id": "mem_orch_020",
+      "content": "Phase 5 CLI設計開始: Python抜きでエージェント操作。CLI + YAML設定 + 既存実装活用の方針",
+      "scope_level": "project",
+      "scope_domain": null,
+      "scope_project": "llm-persistent-memory-phase5",
+      "strength": 1.0,
+      "strength_by_perspective": {
+        "ユーザー意図": 1.5,
+        "エージェント適性": 1.2,
+        "タスク依存関係": 1.3,
+        "進捗評価": 1.0,
+        "リスク検知": 1.0
+      },
+      "access_count": 0,
+      "candidate_count": 0,
+      "consolidation_level": 0,
+      "status": "active",
+      "source": "user_dialogue",
+      "created_at": "2026-01-16T16:00:00Z",
+      "updated_at": "2026-01-16T16:00:00Z",
+      "last_accessed_at": null,
+      "learning": "[ユーザー意図] Pythonを書かずにエージェントを操作したい。仕事や私生活のパートナーとなるエージェントを作る目標\n[エージェント適性] document_agentが仕様書作成、task_execution_agentがCLI実装を担当予定\n[タスク依存関係] 既存実装（AgentRegistry, EducationProcess, Orchestrator, TaskExecutor）をCLIから呼び出す設計"
     }
   ],
   "metadata": {
     "last_sleep_at": "2025-01-13T12:00:00Z",
-    "total_memories": 13,
-    "active_memories": 13,
+    "total_memories": 20,
+    "active_memories": 20,
     "archived_memories": 0,
-    "last_updated": "2026-01-14T00:00:00Z"
+    "last_updated": "2026-01-16T16:00:00Z"
   }
 }

@@ -39,7 +39,7 @@ def _make_db_row(
     strength: float = 1.0,
     similarity: float = 0.85,
 ) -> tuple:
-    """テスト用DB行データを作成（similarity込み）"""
+    """テスト用DB行データを作成（similarity込み、24カラム）"""
     now = datetime.now()
     return (
         memory_id,
@@ -55,9 +55,11 @@ def _make_db_row(
         0,  # access_count
         0,  # candidate_count
         None,  # last_accessed_at
+        None,  # next_review_at
+        0,  # review_count
         0.0,  # impact_score
         0,  # consolidation_level
-        {},  # learnings
+        None,  # learning
         "active",  # status
         None,  # source
         now,  # created_at

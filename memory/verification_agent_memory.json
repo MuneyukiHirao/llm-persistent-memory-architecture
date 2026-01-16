@@ -16,13 +16,6 @@
         "パフォーマンス": 1.4,
         "保守性": 1.3
       },
-      "learnings": {
-        "テストカバレッジ": "test_ranking(18), test_sleep_processor(23), test_task_executor(91)の3ファイルで主要機能をカバー。ただしtest_connection, test_memory, test_memory_repository, test_strength_manager, test_vector_searchが未実装",
-        "再現性": "全テストがモックを活用し外部依存（DB、API）なしで実行可能。環境依存なく毎回同じ結果を保証",
-        "境界値・異常系": "空入力、空白文字、境界値（丁度の値、直上の値）、エラー伝播、部分失敗のテストが網羅的に実装済み",
-        "パフォーマンス": "132テストを0.55秒で実行完了。単体テストとして十分高速",
-        "保守性": "テストクラスが機能別に適切に分割。TestSearchMemories, TestDecayRateCalculation等の命名が明確で可読性高い"
-      },
       "access_count": 0,
       "candidate_count": 0,
       "consolidation_level": 0,
@@ -30,7 +23,8 @@
       "source": "task_execution",
       "created_at": "2026-01-13T13:30:00Z",
       "updated_at": "2026-01-13T13:30:00Z",
-      "last_accessed_at": null
+      "last_accessed_at": null,
+      "learning": "[テストカバレッジ] test_ranking(18), test_sleep_processor(23), test_task_executor(91)の3ファイルで主要機能をカバー。ただしtest_connection, test_memory, test_memory_repository, test_strength_manager, test_vector_searchが未実装\n[保守性] テストクラスが機能別に適切に分割。TestSearchMemories, TestDecayRateCalculation等の命名が明確で可読性高い\n[境界値・異常系] 空入力、空白文字、境界値（丁度の値、直上の値）、エラー伝播、部分失敗のテストが網羅的に実装済み"
     },
     {
       "id": "mem_valid_002",
@@ -46,10 +40,6 @@
         "パフォーマンス": 1.0,
         "保守性": 1.1
       },
-      "learnings": {
-        "テストカバレッジ": "期待されたテストファイルの約60%（5/8ファイル）が未実装。特にDB接続、メモリモデル、リポジトリ層のユニットテストが不足",
-        "境界値・異常系": "上位モジュール（task_executor等）のテストが下位モジュールの動作を間接的に検証しているが、個別の境界値テストが不足の可能性あり"
-      },
       "access_count": 0,
       "candidate_count": 0,
       "consolidation_level": 0,
@@ -57,7 +47,8 @@
       "source": "task_execution",
       "created_at": "2026-01-13T13:30:00Z",
       "updated_at": "2026-01-13T13:30:00Z",
-      "last_accessed_at": null
+      "last_accessed_at": null,
+      "learning": "[境界値・異常系] 上位モジュール（task_executor等）のテストが下位モジュールの動作を間接的に検証しているが、個別の境界値テストが不足の可能性あり\n[テストカバレッジ] 期待されたテストファイルの約60%（5/8ファイル）が未実装。特にDB接続、メモリモデル、リポジトリ層のユニットテストが不足"
     },
     {
       "id": "mem_valid_003",
@@ -73,13 +64,6 @@
         "パフォーマンス": 1.2,
         "保守性": 1.4
       },
-      "learnings": {
-        "テストカバレッジ": "7つのテストクラスで36テストケースを実装。インスタンス化(6件)、プール動作(3件)、コンテキストマネージャー(8件)、エラー処理(3件)、プール管理(5件)、health_check(4件)、シングルトン(5件)をカバー",
-        "再現性": "unittest.mock.patch/MagicMockを活用し、psycopg2依存を完全に除去。環境変数DATABASE_URLもpatch.dictでモック化し、実DBなしで100%再現可能",
-        "境界値・異常系": "接続エラー(OperationalError)、プール枯渇(PoolError)、DB例外時のrollback、close()の冪等性、未初期化プールの安全性をテスト",
-        "パフォーマンス": "36テストを0.10秒で実行。モックによりI/Oオーバーヘッドゼロ",
-        "保守性": "テストクラスを機能単位で分割（TestDatabaseConnectionInitialization等）。フィクスチャ（mock_pool, db_with_mock_pool等）を適切に再利用し重複を排除"
-      },
       "access_count": 0,
       "candidate_count": 0,
       "consolidation_level": 0,
@@ -87,7 +71,8 @@
       "source": "task_execution",
       "created_at": "2026-01-13T14:00:00Z",
       "updated_at": "2026-01-13T14:00:00Z",
-      "last_accessed_at": null
+      "last_accessed_at": null,
+      "learning": "[テストカバレッジ] 7つのテストクラスで36テストケースを実装。インスタンス化(6件)、プール動作(3件)、コンテキストマネージャー(8件)、エラー処理(3件)、プール管理(5件)、health_check(4件)、シングルトン(5件)をカバー\n[保守性] テストクラスを機能単位で分割（TestDatabaseConnectionInitialization等）。フィクスチャ（mock_pool, db_with_mock_pool等）を適切に再利用し重複を排除\n[再現性] unittest.mock.patch/MagicMockを活用し、psycopg2依存を完全に除去。環境変数DATABASE_URLもpatch.dictでモック化し、実DBなしで100%再現可能"
     },
     {
       "id": "mem_valid_004",
@@ -103,13 +88,6 @@
         "パフォーマンス": 1.3,
         "保守性": 1.4
       },
-      "learnings": {
-        "テストカバレッジ": "11テストクラス（Initialization/ToDict/FromRow/CreateFactory/CreateFromEducation/CopyWith/TwoStageStrengthening/ScopeFields/Repr/EdgeCases）で47テストケースを実装。dataclassの全21フィールド、4つのメソッド（to_dict/from_row/create/copy_with）を完全カバー",
-        "再現性": "外部依存なし（DB不要、モック不要）の純粋なユニットテスト。datetime.now()を使用する箇所もbefore/after比較で再現性を担保",
-        "境界値・異常系": "空文字列、Unicode、10000文字の長文、空配列、1536次元embedding、負の強度、強度0、高強度10.0、NULL値のハンドリング（tuple/dict両形式）をテスト",
-        "パフォーマンス": "47テストを0.13秒で実行。I/Oなしの純粋計算テストで高速",
-        "保守性": "テストクラスを機能単位で明確に分割。フィクスチャ（sample_memory, original_memory）を適切に活用。日本語コメントで観点を明示"
-      },
       "access_count": 0,
       "candidate_count": 0,
       "consolidation_level": 0,
@@ -117,7 +95,8 @@
       "source": "task_execution",
       "created_at": "2026-01-13T14:30:00Z",
       "updated_at": "2026-01-13T14:30:00Z",
-      "last_accessed_at": null
+      "last_accessed_at": null,
+      "learning": "[境界値・異常系] 空文字列、Unicode、10000文字の長文、空配列、1536次元embedding、負の強度、強度0、高強度10.0、NULL値のハンドリング（tuple/dict両形式）をテスト\n[保守性] テストクラスを機能単位で明確に分割。フィクスチャ（sample_memory, original_memory）を適切に活用。日本語コメントで観点を明示\n[再現性] 外部依存なし（DB不要、モック不要）の純粋なユニットテスト。datetime.now()を使用する箇所もbefore/after比較で再現性を担保"
     },
     {
       "id": "mem_valid_005",
@@ -133,13 +112,6 @@
         "パフォーマンス": 1.3,
         "保守性": 1.4
       },
-      "learnings": {
-        "テストカバレッジ": "9テストクラス（TestMarkAsCandidate/TestMarkAsUsed/TestMarkAsUsedStrengthValues/TestApplyImpact/TestApplyImpactMultipleTimes/TestUpdateConsolidationLevel/TestReactivate/TestGetImpactValue/TestConfigParameterReference/TestTwoStageReinforcementIntegration）で52テストケースを実装。2段階強化の全メソッド（mark_as_candidate/mark_as_used/apply_impact/update_consolidation_level/reactivate/get_impact_value）を完全カバー",
-        "再現性": "unittest.mock.MagicMockを活用しMemoryRepositoryをモック化。DB依存なしで100%再現可能。parametrize活用で12パターンの境界値テストを効率的に実装",
-        "境界値・異常系": "空リスト（mark_as_candidate）、存在しないメモリID（mark_as_used/apply_impact/reactivate）、無効なimpact_type（ValueError）、定着レベル境界値（0/4/5/14/15/29/30/59/60/99/100/1000）、既にアクティブなメモリの再活性化エラーを検証",
-        "パフォーマンス": "52テストを0.12秒で実行。モックによりI/Oオーバーヘッドゼロで高速実行",
-        "保守性": "テストクラスを機能単位で分割。create_test_memory()ヘルパー関数で重複排除。Phase1Configの各パラメータ（strength_increment_on_use/perspective_strength_increment/reactivation_strength/impact_*）が正しく参照されることを個別に検証"
-      },
       "access_count": 0,
       "candidate_count": 0,
       "consolidation_level": 0,
@@ -147,7 +119,8 @@
       "source": "task_execution",
       "created_at": "2026-01-13T15:00:00Z",
       "updated_at": "2026-01-13T15:00:00Z",
-      "last_accessed_at": null
+      "last_accessed_at": null,
+      "learning": "[境界値・異常系] 空リスト（mark_as_candidate）、存在しないメモリID（mark_as_used/apply_impact/reactivate）、無効なimpact_type（ValueError）、定着レベル境界値（0/4/5/14/15/29/30/59/60/99/100/1000）、既にアクティブなメモリの再活性化エラーを検証\n[保守性] テストクラスを機能単位で分割。create_test_memory()ヘルパー関数で重複排除。Phase1Configの各パラメータ（strength_increment_on_use/perspective_strength_increment/reactivation_strength/impact_*）が正しく参照されることを個別に検証\n[再現性] unittest.mock.MagicMockを活用しMemoryRepositoryをモック化。DB依存なしで100%再現可能。parametrize活用で12パターンの境界値テストを効率的に実装"
     },
     {
       "id": "mem_valid_006",
@@ -163,13 +136,6 @@
         "パフォーマンス": 1.3,
         "保守性": 1.4
       },
-      "learnings": {
-        "テストカバレッジ": "15テストクラス（Setup/Create/GetById/GetByAgentId/Update/Archive/IncrementCandidateCount/IncrementAccessCount/UpdatePerspectiveStrength/BatchIncrementCandidateCount/BatchUpdateStrength/BatchArchive/GetMemoriesForDecay/CountActiveMemories/GetLowestStrengthMemories/FormatEmbedding/EdgeCases/SqlInjectionPrevention）で36テストケースを実装。MemoryRepositoryの全14メソッドを完全カバー",
-        "再現性": "unittest.mock.MagicMockを活用しDatabaseConnectionをモック化。mock_cursor.__enter__/__exit__でコンテキストマネージャーを模倣。DB依存なしで100%再現可能",
-        "境界値・異常系": "存在しないIDへのget_by_id(None返却)/update(ValueError)/archive(False返却)、空リストのバッチ操作(0返却・SQL実行なし)、1536次元embedding、特殊文字コンテンツ、SQLインジェクション試行（パラメータ化クエリで防止）を検証",
-        "パフォーマンス": "36テストを0.12秒で実行。モックによりI/Oオーバーヘッドゼロで高速実行",
-        "保守性": "テストクラスを機能単位で分割。_make_db_row()/_create_memory()ヘルパー関数で重複排除。Arrange/Act/Assertパターンで構造化。SQL文字列の部分マッチでテスト耐性を確保"
-      },
       "access_count": 0,
       "candidate_count": 0,
       "consolidation_level": 0,
@@ -177,7 +143,8 @@
       "source": "task_execution",
       "created_at": "2026-01-13T15:30:00Z",
       "updated_at": "2026-01-13T15:30:00Z",
-      "last_accessed_at": null
+      "last_accessed_at": null,
+      "learning": "[境界値・異常系] 存在しないIDへのget_by_id(None返却)/update(ValueError)/archive(False返却)、空リストのバッチ操作(0返却・SQL実行なし)、1536次元embedding、特殊文字コンテンツ、SQLインジェクション試行（パラメータ化クエリで防止）を検証\n[再現性] unittest.mock.MagicMockを活用しDatabaseConnectionをモック化。mock_cursor.__enter__/__exit__でコンテキストマネージャーを模倣。DB依存なしで100%再現可能\n[保守性] テストクラスを機能単位で分割。_make_db_row()/_create_memory()ヘルパー関数で重複排除。Arrange/Act/Assertパターンで構造化。SQL文字列の部分マッチでテスト耐性を確保"
     },
     {
       "id": "mem_valid_007",
@@ -193,13 +160,6 @@
         "パフォーマンス": 1.3,
         "保守性": 1.4
       },
-      "learnings": {
-        "テストカバレッジ": "11テストクラス（VectorSearchSetup/SearchCandidates/SearchByEmbedding/CountCandidates/FormatEmbedding/SimilarityThresholdFiltering/CandidateLimitRestriction/AzureEmbeddingClientIntegration/EdgeCases/SqlParameters/SqlInjectionPrevention）で38テストケースを実装。VectorSearchの全4メソッド（search_candidates/search_by_embedding/count_candidates/_format_embedding）を完全カバー",
-        "再現性": "unittest.mock.MagicMockを活用しDatabaseConnection/AzureEmbeddingClientをモック化。mock_cursor.__enter__/__exit__でコンテキストマネージャーを模倣。外部API・DB依存なしで100%再現可能",
-        "境界値・異常系": "空クエリ/空白クエリ(空リスト返却)、AzureEmbeddingError(VectorSearchError変換)、DBエラー(VectorSearchError変換)、fetchone=None(count=0)、閾値ちょうど(0.7)、極端な閾値(0.0/0.99)、大きなcandidate_limit(1000)、Unicode/長文クエリ、特殊文字agent_id、SQLインジェクション試行を検証",
-        "パフォーマンス": "38テストを0.45秒で実行。モックによりEmbedding API呼び出し・DB I/Oオーバーヘッドゼロで高速実行",
-        "保守性": "テストクラスを機能単位で分割。_make_db_row()ヘルパー関数でsimilarity込みのDB行データを統一生成。Arrange/Act/Assertパターンで構造化。既存test_memory_repository.pyのパターンを継承し一貫性を維持"
-      },
       "access_count": 0,
       "candidate_count": 0,
       "consolidation_level": 0,
@@ -207,7 +167,152 @@
       "source": "task_execution",
       "created_at": "2026-01-13T16:00:00Z",
       "updated_at": "2026-01-13T16:00:00Z",
-      "last_accessed_at": null
+      "last_accessed_at": null,
+      "learning": "[境界値・異常系] 空クエリ/空白クエリ(空リスト返却)、AzureEmbeddingError(VectorSearchError変換)、DBエラー(VectorSearchError変換)、fetchone=None(count=0)、閾値ちょうど(0.7)、極端な閾値(0.0/0.99)、大きなcandidate_limit(1000)、Unicode/長文クエリ、特殊文字agent_id、SQLインジェクション試行を検証\n[再現性] unittest.mock.MagicMockを活用しDatabaseConnection/AzureEmbeddingClientをモック化。mock_cursor.__enter__/__exit__でコンテキストマネージャーを模倣。外部API・DB依存なしで100%再現可能\n[保守性] テストクラスを機能単位で分割。_make_db_row()ヘルパー関数でsimilarity込みのDB行データを統一生成。Arrange/Act/Assertパターンで構造化。既存test_memory_repository.pyのパターンを継承し一貫性を維持"
+    },
+    {
+      "id": "mem_valid_008",
+      "content": "Phase 1「個性」形成検証完了: 全36テストがパス。核心検証目標「強度管理と減衰が個性を生むか」をYESと結論。メトリクス観測(11件)、個性形成(10件)、2段階強化(15件)の3カテゴリで実DBを使用した統合テストを実施。検証結果: 1)使用頻度の高い情報は強化される(strength+0.1/回, consolidation_level上昇) 2)使用されない情報は減衰する(Level0で約0.5%/タスク減衰, 閾値0.1以下でアーカイブ) 3)ノイズは強化されない(候補マークのみではstrength不変)。",
+      "scope_level": "project",
+      "scope_domain": "testing",
+      "scope_project": "llm-persistent-memory-phase1",
+      "strength": 1.0,
+      "strength_by_perspective": {
+        "テストカバレッジ": 1.3,
+        "再現性": 1.4,
+        "境界値・異常系": 1.3,
+        "パフォーマンス": 1.1,
+        "保守性": 1.2
+      },
+      "access_count": 0,
+      "candidate_count": 0,
+      "consolidation_level": 0,
+      "status": "active",
+      "source": "task_execution",
+      "created_at": "2026-01-13T22:50:00Z",
+      "updated_at": "2026-01-13T22:50:00Z",
+      "last_accessed_at": null,
+      "learning": "[保守性] conftest.pyに共通フィクスチャ(db/repository/strength_manager/sleep_processor)とヘルパー関数(create_test_memory/create_test_memories_batch)を集約。テストファイルを機能別に分割(metrics_observation/personality_formation/two_stage_reinforcement)\n[境界値・異常系] consolidation_level閾値境界(0/5/15/30/60/100)、archive_threshold境界(0.1)、candidate_count>50境界、ゼロ除算回避(candidate_count=0)、空データ、全アーカイブ状態をテスト\n[テストカバレッジ] 3カテゴリ(メトリクス観測11件/個性形成10件/2段階強化15件)で36テストを実装。アーカイブ率・定着レベル・使用率・候補未使用の4指標、定着レベル進行(0-5)、減衰動作、アーカイブ動作、Stage1/Stage2分離、ノイズ軽減を網羅"
+    },
+    {
+      "id": "mem_verify_009",
+      "content": "Phase 2 E2E統合テスト作成完了: 全26テストがパス（0.45秒）。tests/integration/test_phase2_e2e.py に5つの主要シナリオ（単純タスク、大きな入力、やり直し要求、中間睡眠、複数タスク）と全コンポーネント連携（InputProcessor→Orchestrator→Router→Evaluator→ProgressManager）を検証。モック活用でLLM呼び出しなしで再現可能。",
+      "scope_level": "project",
+      "scope_domain": "testing",
+      "scope_project": "llm-persistent-memory",
+      "strength": 1.0,
+      "strength_by_perspective": {
+        "テストカバレッジ": 1.4,
+        "再現性": 1.5,
+        "境界値・異常系": 1.3,
+        "パフォーマンス": 1.4,
+        "保守性": 1.4
+      },
+      "access_count": 0,
+      "candidate_count": 0,
+      "consolidation_level": 0,
+      "status": "active",
+      "source": "task_execution",
+      "created_at": "2026-01-15T08:00:00Z",
+      "updated_at": "2026-01-15T08:00:00Z",
+      "last_accessed_at": null,
+      "learning": "[保守性] テストクラスをシナリオ別に分割。create_mock_*()ファクトリ関数でモック生成を集約しDRY原則を遵守。フィクスチャ（input_processor/orchestrator/evaluator/progress_manager）をpytest依存性注入で提供。アサーションメッセージで失敗時の診断を容易化\n[再現性] unittest.mock.MagicMockを活用しAgentRegistry/TaskExecutor/SessionStateRepositoryをモック化。create_mock_agent_registry()等のファクトリ関数でモック生成を標準化。LLM呼び出し・DB依存なしで100%再現可能\n[境界値・異常系] 空入力/空白のみ入力、存在しないセッションへのアクセス、エージェント不在時のno_agentステータス、曖昧な入力の透過処理、大きな入力（5000トークン超）での概要生成、10論点超での交渉トリガー、睡眠後のカウンタリセットを検証"
+    },
+    {
+      "id": "mem_verify_010",
+      "content": "FeatureExtractorテスト作成完了: 全66テストがパス（0.11秒）。tests/scoring/test_feature_extractor.py に17テストクラスでextract_task_features(6特徴量)、extract_agent_features(5特徴量)、内部メソッド(_count_items/_has_keywords/_calculate_complexity)、境界値・異常系、再現性、型チェック、キーワードリスト検証を網羅。外部依存なしの純粋関数テストで高速・再現性を確保。",
+      "scope_level": "project",
+      "scope_domain": "testing",
+      "scope_project": "llm-persistent-memory",
+      "strength": 1.0,
+      "strength_by_perspective": {
+        "テストカバレッジ": 1.5,
+        "再現性": 1.5,
+        "境界値・異常系": 1.4,
+        "パフォーマンス": 1.4,
+        "保守性": 1.4
+      },
+      "access_count": 0,
+      "candidate_count": 0,
+      "consolidation_level": 0,
+      "status": "active",
+      "source": "task_execution",
+      "created_at": "2026-01-15T10:50:00Z",
+      "updated_at": "2026-01-15T10:50:00Z",
+      "last_accessed_at": null,
+      "learning": "[境界値・異常系] 空文字列、空白のみ、改行のみ、非常に長いテキスト(1000回繰り返し)、特殊文字(<script>タグ、SQLインジェクション風文字列)、Unicode(絵文字)、capabilities/perspectives空、past_experiences空リスト、duration_seconds欠落、success欠落を網羅的にテスト\n[保守性] テストクラスを機能別に17分割し責務明確。フィクスチャ(config/extractor/sample_agent/past_experiences_*)でDRY原則遵守。TASK_FEATURES/AGENT_FEATURESを動的参照し仕様変更への追従性確保。Arrange-Act-Assert構造で可読性維持\n[再現性] 外部依存なし（DB不要、API不要、モック不要）の純粋関数テスト。TestReproducibilityで同一入力→同一出力を3回連続実行で検証。datetime依存なく完全な再現性を保証"
+    },
+    {
+      "id": "mem_verify_011",
+      "content": "ExperimentManager実装・テスト完了: A/Bテスト実験管理（src/ab_testing/experiment_manager.py）を実装し、全49テストがパス（0.96秒）。20テストクラスで実験ライフサイクル（create/start/pause/resume/complete）、決定論的バリアント割り当て、メトリクス記録、scipy.stats.ttest_ind による統計分析、エラーハンドリングを網羅的に検証。numpy型のPython標準型への変換が重要な学び。",
+      "scope_level": "project",
+      "scope_domain": "testing",
+      "scope_project": "llm-persistent-memory",
+      "strength": 1.0,
+      "strength_by_perspective": {
+        "テストカバレッジ": 1.5,
+        "再現性": 1.5,
+        "境界値・異常系": 1.4,
+        "パフォーマンス": 1.4,
+        "保守性": 1.4
+      },
+      "access_count": 0,
+      "candidate_count": 0,
+      "consolidation_level": 0,
+      "status": "active",
+      "source": "task_execution",
+      "created_at": "2026-01-15T13:30:00Z",
+      "updated_at": "2026-01-15T13:30:00Z",
+      "last_accessed_at": null,
+      "learning": "[保守性] テストクラスを機能単位で20分割し責務明確。create_experiment_row()ヘルパー関数で重複排除。sample_experiment_row/running_experiment_rowフィクスチャで状態別テストデータを提供。numpy型（np.True_, np.float64）をPython標準型（bool, float）に変換することでJSON シリアライズ・is比較の互換性問題を解決\n[境界値・異常系] 空バリアント（ValueError）、トラフィック配分不一致（ValueError）、無効なステータス遷移（ExperimentStateError）、存在しない実験（ExperimentNotFoundError）、無効なバリアントID（ValueError）、データ不足時の統計分析（is_significant=False）、単一バリアント実験、controlなしバリアントを検証\n[再現性] unittest.mock.MagicMockを活用しDatabaseConnectionをモック化。mock_cursor.__enter__/__exit__でコンテキストマネージャーを模倣。create_experiment_row()ヘルパー関数でDB行データを統一生成。DB依存なしで100%再現可能"
+    },
+    {
+      "id": "mem_verify_012",
+      "content": "Phase 3 E2E統合テスト作成完了: 全34テストがパス（1.60秒）。tests/integration/test_phase3_e2e.py に10テストクラスで6シナリオ（基本フロー TaskQueue→LoadBalancer→MetricsCollector、学習パイプライン FeatureExtractor、NeuralScorer フォールバック、WebSocket購読・ブロードキャスト、メトリクス収集、全コンポーネント連携）を検証。モック活用でDB・外部API依存なしで再現可能。",
+      "scope_level": "project",
+      "scope_domain": "testing",
+      "scope_project": "llm-persistent-memory",
+      "strength": 1.0,
+      "strength_by_perspective": {
+        "テストカバレッジ": 1.4,
+        "再現性": 1.5,
+        "境界値・異常系": 1.4,
+        "パフォーマンス": 1.4,
+        "保守性": 1.4
+      },
+      "access_count": 0,
+      "candidate_count": 0,
+      "consolidation_level": 0,
+      "status": "active",
+      "source": "task_execution",
+      "created_at": "2026-01-15T15:00:00Z",
+      "updated_at": "2026-01-15T15:00:00Z",
+      "last_accessed_at": null,
+      "learning": "[再現性] unittest.mock.MagicMockでAgentRegistry/EmbeddingClient/DatabaseConnectionをモック化。create_mock_agent_registry()/create_mock_embedding_client()/create_mock_db_connection()のファクトリ関数でモック生成を標準化。MockWebSocket実装でWebSocket接続をエミュレート。外部依存なしで100%再現可能\n[保守性] テストクラスをシナリオ別に10分割。create_mock_*()ファクトリ関数とフィクスチャ（config/task_queue/load_balancer/websocket_server等）でDRY原則を遵守。MockWebSocketクラスでWebSocketProtocolを完全実装し、内部状態操作でテスト容易性を確保。reset_global_collector()でメトリクステスト間の独立性を担保\n[境界値・異常系] 空キュー/満杯キュー/無効優先度/非PROCESSING状態完了/空特徴量入力/健全インスタンスなし/カウンター負インクリメント/存在しないセッションへのブロードキャストを検証。タスクリトライ上限（max_retries=3）の動作も確認"
+    },
+    {
+      "id": "mem_verify_013",
+      "content": "test_execute_with_extract_learning テスト修正完了: extract_learning=True（deprecated）から learning_content + learning_text 両方指定方式に変更。テスト名を test_execute_with_explicit_learning に変更。新設計は「例外的なイベント」のみ記録する思想を反映。1テストがパス（0.46秒）。",
+      "scope_level": "project",
+      "scope_domain": "testing",
+      "scope_project": "llm-persistent-memory",
+      "strength": 1.0,
+      "strength_by_perspective": {
+        "テストカバレッジ": 1.2,
+        "再現性": 1.3,
+        "境界値・異常系": 1.2,
+        "パフォーマンス": 1.1,
+        "保守性": 1.3
+      },
+      "access_count": 0,
+      "candidate_count": 0,
+      "consolidation_level": 0,
+      "status": "active",
+      "source": "task_execution",
+      "created_at": "2026-01-15T16:00:00Z",
+      "updated_at": "2026-01-15T16:00:00Z",
+      "last_accessed_at": null,
+      "learning": "[テストカバレッジ] 学び記録の新設計（learning_content AND learning_text が両方必須）をテストで正しく反映。should_record_learning = learning_content and learning_text の条件を検証\n[保守性] テスト名を test_execute_with_explicit_learning に変更し、新設計の意図を明確化。docstring で deprecated な extract_learning と新設計の違いを説明\n[境界値・異常系] 既存テスト test_execute_without_learning と組み合わせで、学び記録あり/なしの両ケースをカバー"
     }
   ]
 }
