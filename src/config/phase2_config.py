@@ -74,6 +74,23 @@ class Phase2Config(Phase1Config):
     progress_state_file: str = "memory/progress_state.json"
     """進捗状態ファイルパス"""
 
+    # === メタエージェント ===
+    meta_agent_enabled: bool = False
+    """メタエージェント機能の有効化（一時的に無効化）"""
+
+    min_routing_confidence: float = 0.7
+    """この閾値以下で新規エージェント作成を検討（0.5→0.7に引き上げ）"""
+
+    auto_create_agent_threshold: float = 0.1
+    """この閾値以下で自動作成（0.3→0.1に引き下げ、より厳しく）"""
+
+    # === 自動教育 ===
+    auto_educate_new_agents: bool = True
+    """新規エージェントに自動教育を実行"""
+
+    default_textbook_path: str = "textbooks/default_agent_basics.yaml"
+    """デフォルト教科書のパス"""
+
 
 # === ルーティングスコア重み（rule_based方式）===
 ROUTING_SCORE_WEIGHTS: Dict[str, float] = {

@@ -12,5 +12,6 @@
 """
 
 from src.agents.agent_registry import AgentDefinition, AgentRegistry
+from src.agents.meta_agent import MetaAgent, AgentRequirements
 
-__all__ = ["AgentDefinition", "AgentRegistry"]
+__all__ = ["AgentDefinition", "AgentRegistry", "MetaAgent", "AgentRequirements"]
