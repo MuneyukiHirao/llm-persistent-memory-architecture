@@ -1,13 +1,14 @@
 # ファイル操作ツール
 # 実装仕様: docs/phase1-implementation-spec.ja.md
 """
-ファイル操作ツール: file_read, file_write, file_list
+ファイル操作ツール: file_read, file_write, file_list, file_read_image
 
 セキュリティ機能:
 - パストラバーサル防止: プロジェクトディレクトリ外へのアクセスを禁止
 - 絶対パス変換: すべてのパスを正規化して検証
 """
 
+import base64
 import fnmatch
 import logging
 import os
@@ -22,6 +23,17 @@ logger = logging.getLogger(__name__)
 # プロジェクトルートディレクトリ（デフォルト）
 # 実際の使用時は set_project_root() で設定
 _PROJECT_ROOT: Optional[Path] = None
+
+# 画像関連の定数
+SUPPORTED_IMAGE_TYPES = {
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.webp': 'image/webp',
+    '.gif': 'image/gif'
+}
+
+MAX_IMAGE_SIZE = 5 * 1024 * 1024  # 5MB
 
 
 def set_project_root(path: str) -> None:
@@ -288,6 +300,98 @@ def file_list(path: str, pattern: Optional[str] = None) -> Dict[str, Any]:
         )
 
 
+def file_read_image(path: str) -> Dict[str, Any]:
+    """画像ファイルを読み込み、base64エンコードして返す
+
+    Args:
+        path: 画像ファイルパス（プロジェクトルートからの相対パス）
+
+    Returns:
+        ToolResult 互換の辞書
+        - 成功時: {
+            "success": True,
+            "data": {
+                "media_type": "image/png",
+                "data": "base64_encoded_string",
+                "path": "...",
+                "size": ...
+            }
+          }
+        - 失敗時: {"success": False, "error": "..."}
+
+    Raises:
+        ValueError: サポートされていない画像形式またはファイルサイズ超過
+    """
+    # 1. パス検証
+    is_valid, resolved_path, error = _validate_path(path)
+    if not is_valid:
+        logger.warning(f"file_read_image パス検証失敗: {error}")
+        return _make_tool_result(success=False, error=error)
+
+    try:
+        # ファイル存在チェック
+        if not resolved_path.exists():
+            return _make_tool_result(
+                success=False,
+                error=f"ファイルが存在しません: {path}"
+            )
+
+        if not resolved_path.is_file():
+            return _make_tool_result(
+                success=False,
+                error=f"ファイルではありません: {path}"
+            )
+
+        # 2. 拡張子チェックとメディアタイプ判定
+        ext = resolved_path.suffix.lower()
+        if ext not in SUPPORTED_IMAGE_TYPES:
+            supported_formats = ', '.join(SUPPORTED_IMAGE_TYPES.keys())
+            return _make_tool_result(
+                success=False,
+                error=f"サポートされていない画像形式: {ext} (サポート形式: {supported_formats})"
+            )
+        media_type = SUPPORTED_IMAGE_TYPES[ext]
+
+        # 3. ファイルサイズチェック
+        file_size = resolved_path.stat().st_size
+        if file_size > MAX_IMAGE_SIZE:
+            return _make_tool_result(
+                success=False,
+                error=f"画像ファイルが大きすぎます: {file_size} bytes (最大: {MAX_IMAGE_SIZE} bytes = 5MB)"
+            )
+
+        # 4. バイナリ読み込みとbase64エンコード
+        with open(resolved_path, 'rb') as f:
+            image_data = f.read()
+
+        encoded_data = base64.standard_b64encode(image_data).decode('utf-8')
+
+        logger.info(f"file_read_image 成功: {path} ({file_size} bytes, {media_type})")
+
+        # 5. 戻り値
+        return _make_tool_result(
+            success=True,
+            data={
+                "media_type": media_type,
+                "data": encoded_data,
+                "path": str(resolved_path),
+                "size": file_size,
+            }
+        )
+
+    except PermissionError:
+        return _make_tool_result(
+            success=False,
+            error=f"ファイルの読み取り権限がありません: {path}"
+        )
+    except Exception as e:
+        logger.error(f"file_read_image エラー: {path}, {e}")
+        return _make_tool_result(
+            success=False,
+            error=f"画像ファイル読み込みエラー: {e}"
+        )
+
+
 # =============================================================================
 # ツール定義（ToolExecutor 用）
 # =============================================================================
@@ -382,3 +486,29 @@ def get_file_list_tool():
             }
         )
     return FILE_LIST_TOOL
+
+
+# file_read_image ツール定義
+FILE_READ_IMAGE_TOOL = None  # 遅延初期化
+
+
+def get_file_read_image_tool():
+    """file_read_image ツール定義を取得"""
+    global FILE_READ_IMAGE_TOOL
+    if FILE_READ_IMAGE_TOOL is None:
+        Tool = _get_tool_class()
+        FILE_READ_IMAGE_TOOL = Tool(
+            name="file_read_image",
+            description="画像ファイルを読み込み、base64エンコードして返す。PNG, JPEG, WebP, GIF形式に対応。最大5MB。",
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "画像ファイルのパス（プロジェクトルートからの相対パス）"
+                    }
+                },
+                "required": ["path"]
+            }
+        )
+    return FILE_READ_IMAGE_TOOL

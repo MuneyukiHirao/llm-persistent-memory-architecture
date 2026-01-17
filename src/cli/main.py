@@ -147,9 +147,17 @@ class CLIContext:
                 return f"Error: {result.get('error', 'Unknown error')}"
 
             def bash_execute_handler(input_data: dict) -> str:
-                result = bash_execute(input_data["command"])
+                result = bash_execute(
+                    input_data["command"],
+                    timeout=input_data.get("timeout", 30),
+                    working_dir=input_data.get("working_dir")
+                )
                 if result.get("success"):
-                    return result["output"]
+                    data = result["data"]
+                    output = data["stdout"]
+                    if data.get("stderr"):
+                        output += f"\n[stderr]: {data['stderr']}"
+                    return output
                 return f"Error: {result.get('error', 'Unknown error')}"
 
             tool_executor.register_tool(
