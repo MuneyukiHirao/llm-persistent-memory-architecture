@@ -358,6 +358,58 @@ class SessionStateRepository:
             rows = cur.fetchall()
             return [self._row_to_session_state(row) for row in rows]
 
+    def get_by_orchestrator_and_status(
+        self,
+        orchestrator_id: str,
+        status_filter: List[str],
+        order_by: str = "last_activity_at DESC",
+        limit: int = 10,
+    ) -> List[SessionState]:
+        """オーケストレーターIDとステータスでセッションを検索
+
+        Args:
+            orchestrator_id: オーケストレーターID
+            status_filter: ステータスのリスト
+            order_by: ソート順（デフォルト: last_activity_at DESC）
+            limit: 取得件数の上限
+
+        Returns:
+            SessionState のリスト
+        """
+        placeholders = ','.join(['%s'] * len(status_filter))
+        query = f"""
+            SELECT session_id, orchestrator_id, user_request, task_tree,
+                   current_task, overall_progress_percent, status,
+                   created_at, updated_at, last_activity_at
+            FROM session_state
+            WHERE orchestrator_id = %s
+              AND status IN ({placeholders})
+            ORDER BY {order_by}
+            LIMIT %s
+        """
+
+        with self.db.get_cursor() as cur:
+            params = [orchestrator_id] + status_filter + [limit]
+            cur.execute(query, params)
+            rows = cur.fetchall()
+            return [self._row_to_session_state(row) for row in rows]
+
+    def update_status(self, session_id: UUID, status: str) -> bool:
+        """セッションステータスを更新
+
+        Args:
+            session_id: セッション識別子
+            status: 新しいステータス
+
+        Returns:
+            更新成功時 True
+        """
+        return self.update(
+            session_id=session_id,
+            status=status,
+            last_activity_at=datetime.now(),
+        )
+
     def delete(self, session_id: UUID) -> bool:
         """セッション状態を削除
 
@@ -516,6 +568,31 @@ class ProgressManager:
         Returns:
             保存成功時 True
         """
+        # セッションが存在するか確認
+        existing_session = self.session_repository.get_by_id(session_id)
+
+        if existing_session is None:
+            # セッションが存在しない場合は新規作成
+            new_session = SessionState(
+                session_id=session_id,
+                orchestrator_id="cli_orchestrator",  # CLI経由のセッション
+                user_request={"original": "", "clarified": ""},
+                task_tree=task_tree,
+                current_task=current_task,
+                overall_progress_percent=progress_percent,
+            )
+            try:
+                self.session_repository.create(new_session)
+                logger.debug(
+                    f"新規セッションを作成: session_id={session_id}, "
+                    f"progress={progress_percent}%"
+                )
+                return True
+            except Exception as e:
+                logger.error(f"セッション作成に失敗: session_id={session_id}, error={e}")
+                return False
+
+        # セッションが存在する場合は更新
         success = self.session_repository.update(
             session_id=session_id,
             task_tree=task_tree,
@@ -754,6 +831,49 @@ class ProgressManager:
             更新成功時 True
         """
         return self.update_status(session_id, "in_progress")
+
+    def get_recent_sessions(
+        self,
+        orchestrator_id: str,
+        limit: int = 10,
+        status_filter: Optional[List[str]] = None,
+    ) -> List[SessionState]:
+        """最近のセッションを取得
+
+        Args:
+            orchestrator_id: オーケストレーターID
+            limit: 取得件数の上限（デフォルト: 10）
+            status_filter: ステータスフィルタ（デフォルト: ["in_progress", "paused"]）
+
+        Returns:
+            SessionState のリスト
+        """
+        if status_filter is None:
+            status_filter = ["in_progress", "paused"]
+
+        return self.session_repository.get_by_orchestrator_and_status(
+            orchestrator_id=orchestrator_id,
+            status_filter=status_filter,
+            order_by="last_activity_at DESC",
+            limit=limit,
+        )
+
+    def close_session(self, session_id: UUID, status: str = "completed") -> bool:
+        """セッションを閉じる
+
+        Args:
+            session_id: セッション識別子
+            status: 終了時のステータス（デフォルト: completed）
+
+        Returns:
+            更新成功時 True
+        """
+        if status == "completed":
+            return self.complete_session(session_id)
+        elif status == "failed":
+            return self.fail_session(session_id)
+        else:
+            return self.session_repository.update_status(session_id, status)
 
     def _count_completed_tasks(self, task_tree: Dict[str, Any]) -> int:
         """完了タスク数をカウント

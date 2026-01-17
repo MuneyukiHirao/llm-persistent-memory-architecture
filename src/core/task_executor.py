@@ -170,6 +170,7 @@ class TaskExecutor:
         self.sleep_processor = sleep_processor
         self.repository = repository
         self.config = config or Phase1Config()
+        self._task_count = 0  # タスク実行カウンター（自動睡眠フェーズ用）
 
         logger.info("TaskExecutor 初期化完了")
 
@@ -530,6 +531,7 @@ class TaskExecutor:
         extract_learning: bool = False,
         learning_content: Optional[str] = None,
         learning_text: Optional[str] = None,
+        auto_sleep: bool = True,
     ) -> TaskExecutionResult:
         """タスク実行の統合フロー
 
@@ -560,6 +562,7 @@ class TaskExecutor:
             extract_learning: [deprecated] 自動抽出は行わない、明示的指定のみ有効
             learning_content: 記録する学びの content（明示的に指定する場合）
             learning_text: 記録する学びの learning テキスト（明示的に指定する場合）
+            auto_sleep: 自動睡眠フェーズを実行するか（デフォルト: True）
 
         Returns:
             TaskExecutionResult インスタンス
@@ -709,6 +712,26 @@ class TaskExecutor:
             )
         else:
             logger.info("タスク実行完了（成功）")
+
+        # ========================================
+        # Step 7: 自動睡眠フェーズ（新規追加）
+        # ========================================
+        # タスクカウンターを更新
+        self._task_count += 1
+
+        # 自動睡眠判定
+        if auto_sleep and self.config.auto_sleep_after_task:
+            if self._task_count % self.config.auto_sleep_threshold_tasks == 0:
+                try:
+                    sleep_result = self.run_sleep_phase(agent_id)
+                    logger.info(
+                        f"自動睡眠フェーズ完了: "
+                        f"減衰={sleep_result.decayed_count}, "
+                        f"アーカイブ={sleep_result.archived_count}"
+                    )
+                except Exception as e:
+                    # 睡眠フェーズ失敗してもタスク実行は成功扱い
+                    logger.warning(f"自動睡眠フェーズに失敗: {e}")
 
         return result
 

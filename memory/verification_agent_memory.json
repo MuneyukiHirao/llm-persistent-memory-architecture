@@ -313,6 +313,73 @@
       "updated_at": "2026-01-15T16:00:00Z",
       "last_accessed_at": null,
       "learning": "[テストカバレッジ] 学び記録の新設計（learning_content AND learning_text が両方必須）をテストで正しく反映。should_record_learning = learning_content and learning_text の条件を検証\n[保守性] テスト名を test_execute_with_explicit_learning に変更し、新設計の意図を明確化。docstring で deprecated な extract_learning と新設計の違いを説明\n[境界値・異常系] 既存テスト test_execute_without_learning と組み合わせで、学び記録あり/なしの両ケースをカバー"
+    },
+    {
+      "id": "mem_verify_014",
+      "content": "API疎通テスト完了: Azure OpenAI Embedding API（text-embedding-3-small, 1536次元）とAnthropic Claude API（claude-sonnet-4-20250514）の両方が正常に動作。環境変数（OpenAIEmbeddingURI, OpenAIEmbeddingKey, ANTHROPIC_API_KEY）も正しく設定済み。",
+      "scope_level": "project",
+      "scope_domain": "environment",
+      "scope_project": "llm-persistent-memory",
+      "strength": 1.0,
+      "strength_by_perspective": {
+        "再現性": 1.4,
+        "環境設定": 1.5
+      },
+      "access_count": 0,
+      "candidate_count": 0,
+      "consolidation_level": 0,
+      "status": "active",
+      "source": "task_execution",
+      "created_at": "2026-01-16T09:30:00Z",
+      "updated_at": "2026-01-16T09:30:00Z",
+      "last_accessed_at": null,
+      "learning": "[環境設定] 本プロジェクトの仮想環境ディレクトリは .venv ではなく venv である。Python実行時は /home/mhirao/llm-persistent-memory/venv/bin/python を使用すること。一般的な .venv を前提とすると時間を浪費する"
+    },
+    {
+      "id": "mem_verify_015",
+      "content": "AgentRunner実動作確認完了: examples/run_agent.py を使用した実際のClaude API呼び出しが正常に動作。8エージェント（document_agent等）が利用可能。document_agentへのタスク実行でfile_list/file_readツールが6回呼び出され、src/llm/の5ファイル説明を生成。入力トークン81,249、出力トークン829を消費。",
+      "scope_level": "project",
+      "scope_domain": "testing",
+      "scope_project": "llm-persistent-memory",
+      "strength": 1.0,
+      "strength_by_perspective": {
+        "テストカバレッジ": 1.3,
+        "再現性": 1.2,
+        "動作確認": 1.5,
+        "保守性": 1.3
+      },
+      "access_count": 0,
+      "candidate_count": 0,
+      "consolidation_level": 0,
+      "status": "active",
+      "source": "task_execution",
+      "created_at": "2026-01-16T10:20:00Z",
+      "updated_at": "2026-01-16T10:20:00Z",
+      "last_accessed_at": null,
+      "learning": "[環境設定] run_agent.py が .env からANTHROPIC_API_KEYを自動読み込みしなかった。from dotenv import load_dotenv; load_dotenv(PROJECT_ROOT / '.env') の追加で解決。実運用スクリプトでは環境変数ロードを明示的に行うべき"
+    },
+    {
+      "id": "mem_verify_016",
+      "content": "メモリJSONデータのPostgreSQLロード完了: scripts/load_memory_json_to_db.py を作成し、9つのJSONファイルから107件のメモリをDBにロード。AzureEmbeddingClientで各contentのembeddingを生成。agent_idフィルタとベクトル検索の両方が正常動作。",
+      "scope_level": "project",
+      "scope_domain": "db-migration",
+      "scope_project": "llm-persistent-memory",
+      "strength": 1.0,
+      "strength_by_perspective": {
+        "テストカバレッジ": 1.3,
+        "再現性": 1.4,
+        "環境設定": 1.4,
+        "保守性": 1.3
+      },
+      "access_count": 0,
+      "candidate_count": 0,
+      "consolidation_level": 0,
+      "status": "active",
+      "source": "task_execution",
+      "created_at": "2026-01-16T10:40:00Z",
+      "updated_at": "2026-01-16T10:40:00Z",
+      "last_accessed_at": null,
+      "learning": "[環境設定] .envにDATABASE_URLが未設定だった。postgresql://agent:PASSWORD@localhost:5432/agent_memory の形式で追加が必要。また、agent_memoryテーブルにlearningカラム（TEXT型）が存在せず、ALTER TABLE agent_memory ADD COLUMN learning TEXT で追加が必要だった。DBスキーマとソースコードのモデル定義の同期を確認すべき"
     }
   ]
 }

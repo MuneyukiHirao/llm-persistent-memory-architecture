@@ -151,6 +151,13 @@ class Phase1Config:
     default_scope_level: str = "project"
     """新規記憶のデフォルトスコープ: "universal" | "domain" | "project" """
 
+    # === 自動睡眠フェーズ ===
+    auto_sleep_after_task: bool = True
+    """タスク完了後の自動睡眠を有効にするか"""
+
+    auto_sleep_threshold_tasks: int = 1
+    """N回のタスクごとに睡眠（1=毎回）"""
+
     def get_decay_rate(self, consolidation_level: int) -> float:
         """定着レベルに応じたタスク単位の減衰率を取得
 

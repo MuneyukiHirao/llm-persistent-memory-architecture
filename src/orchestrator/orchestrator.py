@@ -43,8 +43,20 @@ from uuid import UUID, uuid4
 from src.orchestrator.router import Router, RoutingDecision
 from src.orchestrator.evaluator import Evaluator, FeedbackResult
 from src.agents.agent_registry import AgentRegistry
+from src.agents.meta_agent import MetaAgent
 from src.core.task_executor import TaskExecutor
 from src.config.phase2_config import Phase2Config, ORCHESTRATOR_PERSPECTIVES
+from src.orchestrator.progress_manager import ProgressManager, SessionStateRepository
+from src.db.connection import DatabaseConnection
+
+# LLM統合（オプション）
+try:
+    from src.llm import LLMTaskExecutor, LLMTaskResult
+    LLM_AVAILABLE = True
+except ImportError:
+    LLMTaskExecutor = None  # type: ignore
+    LLMTaskResult = None  # type: ignore
+    LLM_AVAILABLE = False
 
 
 logger = logging.getLogger(__name__)
@@ -116,6 +128,7 @@ class SessionContext:
         items: 論点リスト
         routing_decision: ルーティング判断結果
         subtask_count: 完了したサブタスク数
+        conversation_history: 会話履歴のリスト（user_input, agent_output のペア）
         created_at: セッション作成日時
         last_activity_at: 最後のアクティビティ日時
     """
@@ -125,6 +138,7 @@ class SessionContext:
     items: List[str] = field(default_factory=list)
     routing_decision: Optional[RoutingDecision] = None
     subtask_count: int = 0
+    conversation_history: List[Dict[str, str]] = field(default_factory=list)
     created_at: datetime = field(default_factory=datetime.now)
     last_activity_at: datetime = field(default_factory=datetime.now)
 
@@ -177,6 +191,9 @@ class Orchestrator:
         evaluator: Evaluator,
         task_executor: TaskExecutor,
         config: Optional[Phase2Config] = None,
+        llm_task_executor: Optional["LLMTaskExecutor"] = None,
+        meta_agent: Optional[MetaAgent] = None,
+        db: Optional[DatabaseConnection] = None,
     ):
         """Orchestrator を初期化
 
@@ -186,23 +203,42 @@ class Orchestrator:
             evaluator: Evaluator インスタンス
             task_executor: TaskExecutor インスタンス（Phase 1 の仕組みを再利用）
             config: Phase2Config インスタンス（省略時はデフォルト設定）
+            llm_task_executor: LLMTaskExecutor インスタンス（オプション、省略時はモック動作）
+            meta_agent: MetaAgent インスタンス（オプション、自動エージェント生成機能）
+            db: DatabaseConnection インスタンス（セッション永続化用、オプション）
         """
         self.agent_id = agent_id
         self.router = router
         self.evaluator = evaluator
         self.task_executor = task_executor
         self.config = config or Phase2Config()
+        self.llm_task_executor = llm_task_executor
+        self.meta_agent = meta_agent
 
         # セッション管理（Phase 2 MVP: インメモリ管理）
         # Phase 3 で DB テーブル（session_state）に移行予定
         self._sessions: Dict[UUID, SessionContext] = {}
+
+        # 進捗管理（セッション永続化用）
+        self.progress_manager = None
+        if db:
+            try:
+                session_repository = SessionStateRepository(db)
+                self.progress_manager = ProgressManager(
+                    session_repository=session_repository,
+                    config=config or Phase2Config(),
+                )
+            except Exception as e:
+                logger.warning(f"ProgressManager の初期化に失敗: {e}")
 
         # 統計情報（睡眠判定に使用）
         self._subtask_completed_count: int = 0
         self._last_activity_time: datetime = datetime.now()
 
         logger.info(
-            f"Orchestrator 初期化完了: agent_id={agent_id}"
+            f"Orchestrator 初期化完了: agent_id={agent_id}, "
+            f"meta_agent_enabled={meta_agent is not None}, "
+            f"progress_manager_enabled={self.progress_manager is not None}"
         )
 
     def process_request(
@@ -243,9 +279,24 @@ class Orchestrator:
         # 1. セッション管理（新規 or 既存）
         session = self._get_or_create_session(session_id, task_summary, items)
 
+        # 1.1. 既存セッションの場合、会話履歴をタスク概要に追加
+        enhanced_task_summary = task_summary
+        if session.conversation_history:
+            # 直近の会話履歴をコンテキストとして追加（最大3件）
+            recent_history = session.conversation_history[-3:]
+            context_lines = []
+            for idx, entry in enumerate(recent_history, 1):
+                context_lines.append(f"[前回の会話 {idx}]")
+                context_lines.append(f"ユーザー: {entry.get('user_input', '')}")
+                context_lines.append(f"応答: {entry.get('agent_output', '')[:100]}...")
+
+            context = "\n".join(context_lines)
+            enhanced_task_summary = f"{context}\n\n[今回の入力]\n{task_summary}"
+            logger.info(f"会話履歴を追加: {len(recent_history)}件")
+
         try:
             # 2. 外部メモリで類似タスクを検索
-            past_experiences = self._search_past_experiences(task_summary)
+            past_experiences = self._search_past_experiences(enhanced_task_summary)
 
             # 3. ルーティング判断
             routing_decision = self.router.decide(
@@ -256,6 +307,73 @@ class Orchestrator:
 
             # セッションにルーティング判断を保存
             session.routing_decision = routing_decision
+
+            # 3.1. メタエージェントによる新規エージェント作成判断
+            # ルーティング確信度が低い場合、新規エージェント作成を検討
+            if (
+                self.meta_agent is not None
+                and self.config.meta_agent_enabled
+                and routing_decision.confidence < self.config.min_routing_confidence
+            ):
+                logger.info(
+                    f"ルーティング確信度が低いため、メタエージェントで新規作成を検討: "
+                    f"confidence={routing_decision.confidence}, "
+                    f"threshold={self.config.min_routing_confidence}"
+                )
+
+                # 既存エージェントを取得
+                existing_agents = self.router.agent_registry.get_active_agents()
+
+                # 新規エージェント作成が必要か判断
+                if self.meta_agent.should_create_new_agent(
+                    task_summary=task_summary,
+                    existing_agents=existing_agents,
+                    routing_confidence=routing_decision.confidence,
+                ):
+                    try:
+                        # エージェント要件を分析
+                        requirements = self.meta_agent.analyze_task_requirements(
+                            task_summary=task_summary
+                        )
+
+                        # AgentDefinition を生成
+                        new_agent = self.meta_agent.generate_agent_definition(
+                            requirements=requirements
+                        )
+
+                        # AgentRegistry に登録
+                        self.router.agent_registry.register(new_agent)
+
+                        logger.info(
+                            f"新規エージェントを自動生成して登録: "
+                            f"agent_id={new_agent.agent_id}, "
+                            f"name={new_agent.name}"
+                        )
+
+                        # 自動教育プロセスを実行
+                        self._educate_new_agent(new_agent.agent_id)
+
+                        # 新規エージェントを選択
+                        routing_decision = RoutingDecision(
+                            selected_agent_id=new_agent.agent_id,
+                            confidence=0.7,
+                            selection_reason=(
+                                f"タスクに最適な新規エージェント「{new_agent.name}」を"
+                                f"自動生成しました。専門性: {requirements.specialization}"
+                            ),
+                            candidates=[{
+                                "agent_id": new_agent.agent_id,
+                                "name": new_agent.name,
+                                "score": 0.7,
+                                "reason": "新規作成エージェント",
+                            }],
+                        )
+
+                        # セッションのルーティング判断を更新
+                        session.routing_decision = routing_decision
+
+                    except Exception as e:
+                        logger.warning(f"新規エージェント作成でエラー: {e}、既存判断を継続")
 
             # エージェントが見つからない場合
             if not routing_decision.selected_agent_id:
@@ -272,11 +390,18 @@ class Orchestrator:
                 )
 
             # 4. タスク委譲
-            agent_result = self._delegate_task(routing_decision, task_summary)
+            agent_result = self._delegate_task(routing_decision, enhanced_task_summary)
 
             # サブタスク完了をカウント
             self._subtask_completed_count += 1
             session.subtask_count += 1
+
+            # 4.1. 会話履歴を更新
+            session.conversation_history.append({
+                "user_input": task_summary,
+                "agent_output": agent_result.get("output", ""),
+                "timestamp": datetime.now().isoformat(),
+            })
 
             # 5. 結果を返す
             result = OrchestratorResult(
@@ -308,9 +433,10 @@ class Orchestrator:
             )
 
         finally:
-            # 睡眠判定
-            if self._should_sleep():
-                logger.info("睡眠トリガー条件を満たしました")
+            # オーケストレーター自身の自動睡眠フェーズ
+            # _should_sleep() の内部ロジックを使用（サブタスク完了数またはアイドル時間）
+            if self.config.auto_sleep_after_task and self._should_sleep():
+                logger.info("オーケストレーター睡眠トリガー条件を満たしました")
                 self._run_sleep_phase()
 
     def receive_feedback(
@@ -393,11 +519,32 @@ class Orchestrator:
         Returns:
             SessionContext インスタンス
         """
+        # メモリ内に存在する場合
         if session_id and session_id in self._sessions:
             session = self._sessions[session_id]
             session.last_activity_at = datetime.now()
-            logger.debug(f"既存セッションを継続: session_id={session_id}")
+            logger.debug(f"既存セッションを継続（メモリ内）: session_id={session_id}")
             return session
+
+        # DBから復元を試みる
+        if session_id and self.progress_manager:
+            try:
+                session_state = self.progress_manager.restore_state(session_id)
+                if session_state:
+                    # SessionStateからSessionContextを復元
+                    session = SessionContext(
+                        session_id=session_id,
+                        task_summary=session_state.user_request.get("original", task_summary),
+                        items=items,
+                        conversation_history=session_state.task_tree.get("conversation_history", []),
+                        created_at=session_state.created_at,
+                        last_activity_at=datetime.now(),
+                    )
+                    self._sessions[session_id] = session
+                    logger.info(f"セッションをDBから復元: session_id={session_id}")
+                    return session
+            except Exception as e:
+                logger.warning(f"セッション復元に失敗: {e}")
 
         # 新規セッション作成
         new_session_id = session_id or uuid4()
@@ -472,8 +619,8 @@ class Orchestrator:
     ) -> Dict[str, Any]:
         """エージェントにタスクを委譲
 
-        Phase 2 MVP: シンプルな委譲（モック結果を返す）
-        Phase 3 で実際の Claude API 呼び出しを追加予定。
+        LLMTaskExecutor が利用可能な場合は実際の Claude API を呼び出し、
+        そうでない場合はモック結果を返す（テスト互換性のため）。
 
         Args:
             routing_decision: ルーティング判断結果
@@ -483,8 +630,8 @@ class Orchestrator:
             エージェントからの結果（dict形式）
 
         Note:
-            - Phase 2 MVP ではモック実装
-            - 実際のエージェント実行は Phase 3 で追加
+            - llm_task_executor が設定されている場合は実際のLLM呼び出し
+            - llm_task_executor が None の場合はモック動作（後方互換性）
         """
         agent_id = routing_decision.selected_agent_id
 
@@ -493,8 +640,14 @@ class Orchestrator:
             f"task_summary={task_summary[:50]!r}..."
         )
 
-        # Phase 2 MVP: モック結果を返す
-        # Phase 3 で実際の Claude API 呼び出しを追加
+        # LLMTaskExecutor が利用可能な場合は実際のLLM呼び出し
+        if self.llm_task_executor is not None:
+            return self._delegate_task_with_llm(
+                routing_decision=routing_decision,
+                task_summary=task_summary,
+            )
+
+        # フォールバック: モック結果を返す（テスト互換性）
         mock_result = {
             "agent_id": agent_id,
             "task_summary": task_summary,
@@ -510,6 +663,101 @@ class Orchestrator:
         logger.debug(f"タスク委譲完了（モック）: agent_id={agent_id}")
 
         return mock_result
+
+    def _delegate_task_with_llm(
+        self,
+        routing_decision: RoutingDecision,
+        task_summary: str,
+    ) -> Dict[str, Any]:
+        """LLMを使用してタスクを委譲
+
+        エージェント定義からsystem_promptを取得し、
+        LLMTaskExecutor.execute_task_with_tools() を呼び出す。
+
+        Args:
+            routing_decision: ルーティング判断結果
+            task_summary: タスクの概要
+
+        Returns:
+            エージェントからの結果（dict形式）
+        """
+        agent_id = routing_decision.selected_agent_id
+
+        # エージェント定義を取得
+        agent_definition = self.router.agent_registry.get_by_id(agent_id)
+        if agent_definition is None:
+            logger.error(f"エージェント定義が見つかりません: agent_id={agent_id}")
+            return {
+                "agent_id": agent_id,
+                "task_summary": task_summary,
+                "status": "error",
+                "output": f"エージェント定義が見つかりません: {agent_id}",
+                "executed_at": datetime.now().isoformat(),
+                "metadata": {
+                    "routing_confidence": routing_decision.confidence,
+                    "selection_reason": routing_decision.selection_reason,
+                    "error": "agent_not_found",
+                },
+            }
+
+        # system_prompt を取得
+        system_prompt = agent_definition.system_prompt
+
+        # 観点を取得（エージェント定義の最初の観点を使用）
+        perspective = None
+        if agent_definition.perspectives:
+            perspective = agent_definition.perspectives[0]
+
+        logger.info(
+            f"LLMタスク実行: agent_id={agent_id}, "
+            f"perspective={perspective}"
+        )
+
+        try:
+            # LLMTaskExecutor でタスク実行
+            llm_result = self.llm_task_executor.execute_task_with_tools(
+                agent_id=agent_id,
+                system_prompt=system_prompt,
+                task_description=task_summary,
+                perspective=perspective,
+            )
+
+            # LLMTaskResult を dict 形式に変換
+            result = {
+                "agent_id": agent_id,
+                "task_summary": task_summary,
+                "status": "completed" if llm_result.stop_reason in ("end_turn", "max_tokens") else "partial",
+                "output": llm_result.content,
+                "executed_at": datetime.now().isoformat(),
+                "metadata": {
+                    "routing_confidence": routing_decision.confidence,
+                    "selection_reason": routing_decision.selection_reason,
+                    "llm_result": llm_result.to_dict(),
+                },
+            }
+
+            logger.info(
+                f"LLMタスク実行完了: agent_id={agent_id}, "
+                f"stop_reason={llm_result.stop_reason}, "
+                f"tool_calls={len(llm_result.tool_calls)}"
+            )
+
+            return result
+
+        except Exception as e:
+            logger.error(f"LLMタスク実行でエラー: {e}")
+            return {
+                "agent_id": agent_id,
+                "task_summary": task_summary,
+                "status": "error",
+                "output": f"LLMタスク実行でエラー: {str(e)}",
+                "executed_at": datetime.now().isoformat(),
+                "metadata": {
+                    "routing_confidence": routing_decision.confidence,
+                    "selection_reason": routing_decision.selection_reason,
+                    "error": str(e),
+                },
+            }
 
     def _record_routing_learning(
         self,
@@ -644,6 +892,66 @@ class Orchestrator:
 
         except Exception as e:
             logger.warning(f"睡眠フェーズでエラー: {e}")
+
+    def _educate_new_agent(self, agent_id: str) -> None:
+        """新規エージェントに基礎知識を自動注入
+
+        デフォルト教科書をロードし、教育プロセスを実行して
+        新規エージェントに基礎知識を注入する。
+
+        Args:
+            agent_id: 教育対象のエージェントID
+
+        Note:
+            - 教育失敗してもエージェント作成は成功扱い
+            - config.auto_educate_new_agents が False の場合は何もしない
+        """
+        if not self.config.auto_educate_new_agents:
+            logger.debug(f"自動教育は無効です: agent_id={agent_id}")
+            return
+
+        try:
+            # デフォルト教科書をロード
+            from src.education.textbook import TextbookLoader
+            from src.education.education_process import EducationProcess
+
+            loader = TextbookLoader()
+            textbook = loader.load(self.config.default_textbook_path)
+
+            logger.info(
+                f"新規エージェント {agent_id} への教育開始: "
+                f"textbook={textbook.title}"
+            )
+
+            # 教育プロセス実行
+            education = EducationProcess(
+                agent_id=agent_id,
+                textbook=textbook,
+                repository=self.task_executor.repository,
+                embedding_client=self.task_executor.vector_search.embedding_client,
+                config=self.config,
+            )
+
+            result = education.run()
+
+            # ログ出力
+            logger.info(
+                f"新規エージェント {agent_id} への教育完了: "
+                f"章={result.chapters_completed}, "
+                f"記憶={result.memories_created}, "
+                f"テスト合格率={result.pass_rate:.1%}"
+            )
+
+        except FileNotFoundError as e:
+            # 教科書ファイルが見つからない場合は警告
+            logger.warning(
+                f"デフォルト教科書が見つかりません: {self.config.default_textbook_path}. "
+                f"エージェント {agent_id} への自動教育をスキップします。"
+            )
+
+        except Exception as e:
+            # 教育失敗してもエージェント作成は成功扱い
+            logger.warning(f"エージェント {agent_id} への自動教育に失敗: {e}")
 
     def get_session(self, session_id: UUID) -> Optional[SessionContext]:
         """セッションを取得

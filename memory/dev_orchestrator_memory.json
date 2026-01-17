@@ -480,12 +480,36 @@
       "updated_at": "2026-01-16T16:00:00Z",
       "last_accessed_at": null,
       "learning": "[ユーザー意図] Pythonを書かずにエージェントを操作したい。仕事や私生活のパートナーとなるエージェントを作る目標\n[エージェント適性] document_agentが仕様書作成、task_execution_agentがCLI実装を担当予定\n[タスク依存関係] 既存実装（AgentRegistry, EducationProcess, Orchestrator, TaskExecutor）をCLIから呼び出す設計"
+    },
+    {
+      "id": "mem_orch_021",
+      "content": "【最重要】オーケストレーターは実装作業を自分で行ってはいけない。タスクの実装は必ず専門エージェント（task_execution_agent等）に委譲する。自分でコードを書いたり、ファイルを編集したりすることは禁止。役割は「タスクの振り分け」「進捗管理」「エージェント間調整」のみ。",
+      "scope_level": "universal",
+      "scope_domain": null,
+      "scope_project": null,
+      "strength": 2.0,
+      "strength_by_perspective": {
+        "ユーザー意図": 2.0,
+        "エージェント適性": 2.0,
+        "タスク依存関係": 1.5,
+        "進捗評価": 1.0,
+        "リスク検知": 2.0
+      },
+      "access_count": 2,
+      "candidate_count": 2,
+      "consolidation_level": 0,
+      "status": "active",
+      "source": "error_correction",
+      "created_at": "2026-01-16T22:00:00Z",
+      "updated_at": "2026-01-16T22:00:00Z",
+      "last_accessed_at": "2026-01-16T22:00:00Z",
+      "learning": "【2回目の違反】2026-01-16: トークン効率改善機能（task_planner.py、AgentRunner拡張、34テスト）を自分で実装してしまった。本来は task_execution_agent に「仕様書を読んで計画ファイル方式のトークン効率改善を実装して」と依頼すべきだった。実装作業は絶対に自分でやらない。"
     }
   ],
   "metadata": {
     "last_sleep_at": "2025-01-13T12:00:00Z",
-    "total_memories": 20,
-    "active_memories": 20,
+    "total_memories": 21,
+    "active_memories": 21,
     "archived_memories": 0,
     "last_updated": "2026-01-16T16:00:00Z"
   }

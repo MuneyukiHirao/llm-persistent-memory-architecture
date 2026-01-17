@@ -108,13 +108,69 @@ class CLIContext:
         """LLMTaskExecutor を遅延初期化"""
         self.initialize()
         if self._llm_task_executor is None:
+            from pathlib import Path
             from src.llm.claude_client import ClaudeClient
             from src.llm.tool_executor import ToolExecutor
             from src.llm.llm_task_executor import LLMTaskExecutor
             from src.config.llm_config import llm_config
+            from src.llm.tools import file_tools
+            from src.llm.tools.bash_tools import get_bash_execute_tool, bash_execute
+
+            # プロジェクトルートを設定
+            project_root = Path.cwd()
+            file_tools.set_project_root(str(project_root))
 
             claude_client = ClaudeClient(config=llm_config)
             tool_executor = ToolExecutor()
+
+            # ファイル操作ツールを登録（ラッパー関数経由）
+            def file_read_handler(input_data: dict) -> str:
+                result = file_tools.file_read(input_data["path"])
+                if result.get("success"):
+                    return result["data"]["content"]
+                return f"Error: {result.get('error', 'Unknown error')}"
+
+            def file_write_handler(input_data: dict) -> str:
+                result = file_tools.file_write(input_data["path"], input_data["content"])
+                if result.get("success"):
+                    return f"File written successfully: {result['data']['path']}"
+                return f"Error: {result.get('error', 'Unknown error')}"
+
+            def file_list_handler(input_data: dict) -> str:
+                result = file_tools.file_list(
+                    input_data["path"],
+                    input_data.get("pattern")
+                )
+                if result.get("success"):
+                    data = result["data"]
+                    return f"Files: {', '.join(data['files'])}\nDirectories: {', '.join(data['directories'])}"
+                return f"Error: {result.get('error', 'Unknown error')}"
+
+            def bash_execute_handler(input_data: dict) -> str:
+                result = bash_execute(input_data["command"])
+                if result.get("success"):
+                    return result["output"]
+                return f"Error: {result.get('error', 'Unknown error')}"
+
+            tool_executor.register_tool(
+                file_tools.get_file_read_tool(),
+                file_read_handler
+            )
+            tool_executor.register_tool(
+                file_tools.get_file_write_tool(),
+                file_write_handler
+            )
+            tool_executor.register_tool(
+                file_tools.get_file_list_tool(),
+                file_list_handler
+            )
+
+            # Bashツールを登録
+            tool_executor.register_tool(
+                get_bash_execute_tool(),
+                bash_execute_handler
+            )
+
             self._llm_task_executor = LLMTaskExecutor(
                 claude_client=claude_client,
                 tool_executor=tool_executor,

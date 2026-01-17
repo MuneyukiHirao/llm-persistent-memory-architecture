@@ -650,3 +650,234 @@ class TestIntegration:
 
         # 呼び出し順序を検証
         assert call_order == ["search", "decide"]
+
+
+# =============================================================================
+# LLM統合テスト
+# =============================================================================
+
+class TestDelegateTaskWithLLM:
+    """LLM統合時の_delegate_taskテスト"""
+
+    @pytest.fixture
+    def mock_llm_task_executor(self):
+        """LLMTaskExecutorのモック"""
+        from unittest.mock import MagicMock
+
+        executor = MagicMock()
+        # LLMTaskResultのモック
+        mock_result = MagicMock()
+        mock_result.content = "LLMからの応答テスト"
+        mock_result.stop_reason = "end_turn"
+        mock_result.tool_calls = []
+        mock_result.to_dict.return_value = {
+            "content": "LLMからの応答テスト",
+            "tool_calls": [],
+            "total_tokens": 100,
+            "iterations": 1,
+            "searched_memories_count": 0,
+            "stop_reason": "end_turn",
+            "success": True,
+        }
+        executor.execute_task_with_tools.return_value = mock_result
+        return executor
+
+    @pytest.fixture
+    def mock_agent_definition(self):
+        """AgentDefinitionのモック"""
+        from unittest.mock import MagicMock
+
+        agent = MagicMock()
+        agent.agent_id = "test_agent"
+        agent.system_prompt = "あなたはテスト用エージェントです。"
+        agent.perspectives = ["品質", "効率", "セキュリティ"]
+        return agent
+
+    def test_delegate_task_uses_llm_when_available(
+        self, mock_router, mock_evaluator, mock_task_executor,
+        mock_llm_task_executor, mock_agent_definition
+    ):
+        """LLMTaskExecutorが設定されている場合はLLMを使用"""
+        mock_router.agent_registry = MagicMock()
+        mock_router.agent_registry.get_by_id.return_value = mock_agent_definition
+
+        orchestrator = Orchestrator(
+            agent_id="orchestrator_test",
+            router=mock_router,
+            evaluator=mock_evaluator,
+            task_executor=mock_task_executor,
+            llm_task_executor=mock_llm_task_executor,
+        )
+
+        routing_decision = RoutingDecision(
+            selected_agent_id="test_agent",
+            selection_reason="テスト",
+            confidence=0.9,
+        )
+
+        result = orchestrator._delegate_task(
+            routing_decision=routing_decision,
+            task_summary="テストタスク",
+        )
+
+        # LLMが使用されたことを確認
+        mock_llm_task_executor.execute_task_with_tools.assert_called_once()
+        assert result["status"] == "completed"
+        assert result["output"] == "LLMからの応答テスト"
+        assert "llm_result" in result["metadata"]
+
+    def test_delegate_task_uses_mock_when_llm_not_available(
+        self, mock_router, mock_evaluator, mock_task_executor
+    ):
+        """LLMTaskExecutorがNoneの場合はモック動作"""
+        orchestrator = Orchestrator(
+            agent_id="orchestrator_test",
+            router=mock_router,
+            evaluator=mock_evaluator,
+            task_executor=mock_task_executor,
+            llm_task_executor=None,  # LLM未設定
+        )
+
+        routing_decision = RoutingDecision(
+            selected_agent_id="test_agent",
+            selection_reason="テスト",
+            confidence=0.9,
+        )
+
+        result = orchestrator._delegate_task(
+            routing_decision=routing_decision,
+            task_summary="テストタスク",
+        )
+
+        # モック結果が返されることを確認
+        assert result["status"] == "completed"
+        assert "Phase 2 MVP" in result["output"]
+
+    def test_delegate_task_handles_agent_not_found(
+        self, mock_router, mock_evaluator, mock_task_executor,
+        mock_llm_task_executor
+    ):
+        """エージェント定義が見つからない場合のエラーハンドリング"""
+        mock_router.agent_registry = MagicMock()
+        mock_router.agent_registry.get_by_id.return_value = None  # エージェント見つからず
+
+        orchestrator = Orchestrator(
+            agent_id="orchestrator_test",
+            router=mock_router,
+            evaluator=mock_evaluator,
+            task_executor=mock_task_executor,
+            llm_task_executor=mock_llm_task_executor,
+        )
+
+        routing_decision = RoutingDecision(
+            selected_agent_id="unknown_agent",
+            selection_reason="テスト",
+            confidence=0.9,
+        )
+
+        result = orchestrator._delegate_task(
+            routing_decision=routing_decision,
+            task_summary="テストタスク",
+        )
+
+        assert result["status"] == "error"
+        assert "見つかりません" in result["output"]
+
+    def test_delegate_task_handles_llm_error(
+        self, mock_router, mock_evaluator, mock_task_executor,
+        mock_llm_task_executor, mock_agent_definition
+    ):
+        """LLM呼び出しエラー時のハンドリング"""
+        mock_router.agent_registry = MagicMock()
+        mock_router.agent_registry.get_by_id.return_value = mock_agent_definition
+        mock_llm_task_executor.execute_task_with_tools.side_effect = Exception("API接続エラー")
+
+        orchestrator = Orchestrator(
+            agent_id="orchestrator_test",
+            router=mock_router,
+            evaluator=mock_evaluator,
+            task_executor=mock_task_executor,
+            llm_task_executor=mock_llm_task_executor,
+        )
+
+        routing_decision = RoutingDecision(
+            selected_agent_id="test_agent",
+            selection_reason="テスト",
+            confidence=0.9,
+        )
+
+        result = orchestrator._delegate_task(
+            routing_decision=routing_decision,
+            task_summary="テストタスク",
+        )
+
+        assert result["status"] == "error"
+        assert "API接続エラー" in result["output"]
+
+    def test_delegate_task_uses_first_perspective(
+        self, mock_router, mock_evaluator, mock_task_executor,
+        mock_llm_task_executor, mock_agent_definition
+    ):
+        """エージェントの最初の観点が使用されることを確認"""
+        mock_router.agent_registry = MagicMock()
+        mock_router.agent_registry.get_by_id.return_value = mock_agent_definition
+
+        orchestrator = Orchestrator(
+            agent_id="orchestrator_test",
+            router=mock_router,
+            evaluator=mock_evaluator,
+            task_executor=mock_task_executor,
+            llm_task_executor=mock_llm_task_executor,
+        )
+
+        routing_decision = RoutingDecision(
+            selected_agent_id="test_agent",
+            selection_reason="テスト",
+            confidence=0.9,
+        )
+
+        orchestrator._delegate_task(
+            routing_decision=routing_decision,
+            task_summary="テストタスク",
+        )
+
+        # LLM呼び出し時に最初の観点が渡されたことを確認
+        call_args = mock_llm_task_executor.execute_task_with_tools.call_args
+        assert call_args.kwargs["perspective"] == "品質"  # mock_agent_definitionの最初の観点
+
+    def test_delegate_task_with_partial_result(
+        self, mock_router, mock_evaluator, mock_task_executor,
+        mock_llm_task_executor, mock_agent_definition
+    ):
+        """max_iterations到達時のpartialステータス"""
+        mock_router.agent_registry = MagicMock()
+        mock_router.agent_registry.get_by_id.return_value = mock_agent_definition
+
+        # max_iterationsで終了した場合のモック
+        mock_result = MagicMock()
+        mock_result.content = "部分的な結果"
+        mock_result.stop_reason = "max_iterations"
+        mock_result.tool_calls = []
+        mock_result.to_dict.return_value = {"stop_reason": "max_iterations"}
+        mock_llm_task_executor.execute_task_with_tools.return_value = mock_result
+
+        orchestrator = Orchestrator(
+            agent_id="orchestrator_test",
+            router=mock_router,
+            evaluator=mock_evaluator,
+            task_executor=mock_task_executor,
+            llm_task_executor=mock_llm_task_executor,
+        )
+
+        routing_decision = RoutingDecision(
+            selected_agent_id="test_agent",
+            selection_reason="テスト",
+            confidence=0.9,
+        )
+
+        result = orchestrator._delegate_task(
+            routing_decision=routing_decision,
+            task_summary="テストタスク",
+        )
+
+        assert result["status"] == "partial"
